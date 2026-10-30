@@ -7,6 +7,8 @@ import { cached, loadSp500History } from "@/lib/server/market-sources"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+// Combines the GPR spreadsheet download with three years of S&P 500 history.
+export const maxDuration = 60
 
 const HISTORY_MS = 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000

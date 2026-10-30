@@ -3,6 +3,8 @@ import { getDailyGpr } from "@/lib/server/gpr-source"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+// Downloads and parses the daily GPR spreadsheet on a cold cache.
+export const maxDuration = 60
 
 export async function GET() {
   try {

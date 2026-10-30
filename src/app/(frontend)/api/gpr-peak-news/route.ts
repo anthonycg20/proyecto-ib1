@@ -4,6 +4,8 @@ import { cached } from "@/lib/server/market-sources"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+// Reads the GPR file and then queries news providers for each peak day.
+export const maxDuration = 60
 
 export async function GET() {
   try {
