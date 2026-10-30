@@ -1,0 +1,11 @@
+{
+  "title": "IB1 Project",
+  "description": "YMC Finanzas is a financial analysis platform designed for SMEs and entrepreneurs, enabling users to evaluate financial decisions through interactive tools and clear reports.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
