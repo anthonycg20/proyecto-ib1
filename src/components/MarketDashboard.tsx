@@ -340,7 +340,7 @@ function treemap(
 function heatColor(change: number) {
   const token =
     change >= 0 ? "var(--sentiment-greed)" : "var(--sentiment-critical)"
-  return `color-mix(in srgb, ${token} ${Math.min(95, 58 + Math.abs(change) * 15)}%, var(--navy-deep))`
+  return `color-mix(in srgb, ${token} ${Math.min(96, 66 + Math.abs(change) * 12)}%, var(--navy-deep))`
 }
 
 function Heatmap({

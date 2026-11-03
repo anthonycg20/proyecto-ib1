@@ -26,6 +26,34 @@
   font-synthesis: none;
 }
 
+/* Paleta intensificada del dashboard. Se declara sobre <main>, así que todo el
+   contenido hereda estos tonos mientras la barra lateral (fuera de <main>)
+   conserva los colores originales de :root. */
+main {
+  --navy: #052a72;
+  --navy-deep: #051f52;
+  --primary: #0b3fbf;
+  --bright: #0a7cff;
+  --blue-soft: #d9e9ff;
+  --green: #00b877;
+  --green-soft: #d3f7e6;
+  --orange: #ff9500;
+  --orange-soft: #ffe9c7;
+  --red: #f5253c;
+  --red-soft: #ffe0e3;
+  --violet: #6d3bf5;
+  --violet-soft: #ece5ff;
+  --ink: #0d1b33;
+  --muted: #4d5e78;
+  --line: #d7e0ec;
+  --sentiment-critical: #e01b3c;
+  --sentiment-fear: #f26a0f;
+  --sentiment-neutral: #6d7f96;
+  --sentiment-greed: #009e6d;
+  --sentiment-optimism: #0093c4;
+  --shadow: 0 10px 30px rgba(11, 44, 102, 0.11);
+}
+
 * {
   box-sizing: border-box;
 }

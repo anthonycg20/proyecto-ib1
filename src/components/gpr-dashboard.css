@@ -2,15 +2,15 @@
   --gpr-gap: 16px;
   --gpr-inset: 20px;
   --gpr-radius: 14px;
-  --gpr-gpr: #a13d56;
-  --gpr-gpra: #289773;
-  --gpr-gprt: #c89b32;
-  --risk-low: #31957b;
-  --risk-moderate: #a5ca80;
-  --risk-elevated: #efc75a;
-  --risk-high: #ed8b4c;
-  --risk-critical: #a82e4b;
-  --risk-unavailable: #dce3ea;
+  --gpr-gpr: #b81f45;
+  --gpr-gpra: #00a373;
+  --gpr-gprt: #e0a800;
+  --risk-low: #009c74;
+  --risk-moderate: #7fc24a;
+  --risk-elevated: #f5b800;
+  --risk-high: #f97316;
+  --risk-critical: #c2183f;
+  --risk-unavailable: #d3dde8;
 }
 
 .gpr-page-header {
