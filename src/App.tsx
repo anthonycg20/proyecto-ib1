@@ -1730,7 +1730,11 @@ export default function App() {
   const [mobileViewport, setMobileViewport] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const gprMobile = active === "datos" && mobileViewport;
+  // Las tres secciones principales comparten el formato móvil del GPR Index:
+  // barra de marca, buscador y pestañas inferiores.
+  const isMobilePrimary =
+    active === "dashboard" || active === "datos" || active === "diagnostico";
+  const gprMobile = isMobilePrimary && mobileViewport;
   const topbarTitle = topbarTitles[active];
   const [company, setCompany] = useState("Estudio Norte SRL");
   const [period, setPeriod] = useState("2025");
@@ -1840,7 +1844,7 @@ export default function App() {
   }, [active, company, data, documents, isDemo, period, saved]);
 
   return (
-    <div className={`app-shell${active === "datos" ? " gpr-mobile-shell" : ""}`}>
+    <div className={`app-shell${isMobilePrimary ? " gpr-mobile-shell" : ""}${isMobilePrimary && active !== "datos" ? " mobile-compact" : ""}`}>
       <aside id="app-navigation" ref={sidebarRef} className={`sidebar ${menuOpen ? "open" : ""}`} inert={gprMobile && !menuOpen} role={gprMobile && menuOpen ? "dialog" : undefined} aria-modal={gprMobile && menuOpen ? true : undefined} aria-label={gprMobile && menuOpen ? "Navegación principal" : undefined}>
         <div className="sidebar-top"><div className="logo sidebar-brand"><Image alt="" className="sidebar-brand-mark" src={ib1Logo} width={48} height={48} loading="eager" unoptimized /><span className="sidebar-brand-name"><small>Investment Business One</small></span></div></div>
         <nav aria-label="Navegación principal">
@@ -1853,7 +1857,7 @@ export default function App() {
       {menuOpen && <div className="overlay" onClick={() => setMenuOpen(false)} />}
       <main inert={gprMobile && menuOpen}>
         <div className="mobile-bar">
-          {active === "datos" ? (
+          {isMobilePrimary ? (
             <>
               <div className="logo gpr-mobile-brand">
                 <Image alt="" className="sidebar-brand-mark" src={ib1Logo} width={48} height={48} loading="eager" unoptimized />
@@ -1888,12 +1892,12 @@ export default function App() {
             </div>
           </div>
         )}
-        <div className={`content${topbarTitle ? " content-compact" : ""}${active === "dashboard" ? " max-[860px]:px-4! max-[860px]:py-5! sm:max-[860px]:px-6!" : ""}`} ref={contentRef} tabIndex={-1}>
-          {active === "datos" && <div className="gpr-mobile-search"><GlobalSearch navigate={navigate} /></div>}
+        <div className={`content${topbarTitle ? " content-compact" : ""}${isMobilePrimary ? ` content-${active}` : ""}${active === "dashboard" && !mobileViewport ? " max-[860px]:px-4! max-[860px]:py-5! sm:max-[860px]:px-6!" : ""}`} ref={contentRef} tabIndex={-1}>
+          {isMobilePrimary && <div className="gpr-mobile-search"><GlobalSearch navigate={navigate} /></div>}
           {view}
         </div>
       </main>
-      {active === "datos" && (
+      {isMobilePrimary && (
         <nav className="gpr-mobile-tabs" aria-label="ANALISIS DE MERCADO" inert={gprMobile && menuOpen}>
           {navigation.slice(0, 3).map((item) => (
             <Button key={item.id} variant="ghost" aria-current={active === item.id ? "page" : undefined} onClick={() => navigate(item.id)}>

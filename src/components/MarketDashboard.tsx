@@ -26,7 +26,7 @@ import type {
 import type { HeadlineSentiment, MarketNewsResponse } from "@/lib/sentiment-nlp"
 
 const panel =
-  "min-w-0 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)]"
+  "dash-panel min-w-0 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)]"
 const positive = "text-[var(--sentiment-greed)]"
 const negative = "text-[var(--sentiment-critical)]"
 const decimal = (digits: number) =>
@@ -224,7 +224,7 @@ function MarketTicker({
   })
 
   return (
-    <section aria-label="Indicadores globales" className="mb-4 min-w-0">
+    <section aria-label="Indicadores globales" className="market-ticker-section mb-4 min-w-0">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">
         <span className="font-medium">Mercados globales</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -367,18 +367,18 @@ function Heatmap({
   const available = section?.status === "available" ? section : null
 
   return (
-    <section className={panel}>
-      <div className="flex items-center justify-between gap-2 px-3.5 py-3">
+    <section className={`${panel} heatmap-card`}>
+      <div className="heatmap-head flex items-center justify-between gap-2 px-3.5 py-3">
         <PanelTitle>{title}</PanelTitle>
         <span className="shrink-0 rounded-sm bg-[var(--background)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
           {badge}
         </span>
       </div>
-      <div className="px-2.5">
+      <div className="heatmap-canvas px-2.5">
         {tiles.length ? (
           <svg
             viewBox="0 0 520 270"
-            className="block w-full overflow-visible"
+            className="heatmap-map block w-full overflow-visible"
             role="group"
             aria-label={`${title}: variaciones diarias. Seleccioná un activo para ver su detalle.`}
           >
@@ -459,7 +459,7 @@ function Heatmap({
           </div>
         )}
       </div>
-      <div className="flex min-h-10 items-center justify-between gap-2 px-3.5 py-2 text-xs">
+      <div className="heatmap-detail flex min-h-10 items-center justify-between gap-2 px-3.5 py-2 text-xs">
         {selected ? (
           <>
             <span className="min-w-0 truncate text-[var(--muted)]">
@@ -486,7 +486,7 @@ function Heatmap({
           <span className="text-[var(--muted)]">Sin datos para mostrar</span>
         )}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-3.5 py-2 text-xs text-[var(--muted)]">
+      <div className="heatmap-foot flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-3.5 py-2 text-xs text-[var(--muted)]">
         <span>
           {subtitle}
           {available &&
@@ -621,7 +621,7 @@ function ComparisonChart({ openGPR }: { openGPR: () => void }) {
       : monthFormat.format(utcDate(date))
 
   return (
-    <section className={panel}>
+    <section className={`${panel} comparison-card`}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
         <div>
           <PanelTitle>GPR Index vs. desempeño del mercado</PanelTitle>
@@ -656,7 +656,7 @@ function ComparisonChart({ openGPR }: { openGPR: () => void }) {
       </div>
       {current && gprAxis && marketAxis ? (
         <>
-          <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-2 border-y border-[var(--line)] py-2">
+          <div className="comparison-legend mx-4 mt-4 flex flex-wrap items-center justify-between gap-2 border-y border-[var(--line)] py-2">
             <div className="flex flex-wrap gap-x-3 gap-y-1">
               {([
                 {
@@ -715,7 +715,7 @@ function ComparisonChart({ openGPR }: { openGPR: () => void }) {
           >
             <svg
               viewBox="0 0 750 286"
-              className="block w-full min-w-144 rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)] sm:min-w-0"
+              className="comparison-chart block w-full min-w-144 rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)] sm:min-w-0"
               role="img"
               tabIndex={0}
               aria-label={`Comparación de ${period}: ${dateFormat.format(utcDate(points[0].date))} al ${dateFormat.format(utcDate(points.at(-1)!.date))}. Flechas izquierda y derecha para explorar. GPR ${noDecimals.format(current.gpr)}; S&P 500 ${twoDecimals.format(current.market)}, ${percentFormat.format(current.indexed - 100)} por ciento desde el inicio del período.`}
@@ -998,7 +998,7 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
 
   return (
     <aside
-      className={`${panel} flex h-full flex-col min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:row-span-2`}
+      className={`${panel} news-card flex h-full flex-col min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:row-span-2`}
       aria-label="Noticias de fuentes públicas"
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
@@ -1074,7 +1074,7 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
         </p>
       )}
       <div
-        className="max-h-144 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-136"
+        className="news-list max-h-144 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-136"
         aria-busy={loading}
       >
         {loading && !news ? (
@@ -1218,8 +1218,8 @@ export default function MarketDashboard({
         : "Datos de mercado · actualización cada 60 s",
   }
   return (
-    <div className="min-w-0 text-[var(--ink)]">
-      <header className="inline-page-header mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="market-dashboard min-w-0 text-[var(--ink)]">
+      <header className="market-page-header inline-page-header mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Heading
             level={1}
@@ -1269,7 +1269,7 @@ export default function MarketDashboard({
         </div>
         <NewsFeed openSentiment={() => navigate("diagnostico")} />
       </div>
-      <footer className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]">
+      <footer className="market-footnote mt-4 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]">
         <span className="mt-0.5 shrink-0">
           <Icon name="info" size={13} />
         </span>

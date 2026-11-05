@@ -12,7 +12,7 @@ import type {
 } from "@/lib/fear-greed"
 import type { HeadlineSentiment, MarketNewsResponse } from "@/lib/sentiment-nlp"
 
-const panel = "rounded-lg border border-[var(--line)] bg-[var(--surface)]"
+const panel = "dash-panel rounded-lg border border-[var(--line)] bg-[var(--surface)]"
 const newsStates = {
   positive: {
     label: "Positivo",
@@ -150,7 +150,7 @@ function FearGreedGauge({
           {sourceLabel(status, data)}
         </span>
       </div>
-      <div className="mx-auto max-w-80 px-4 pt-2">
+      <div className="sentiment-gauge-canvas mx-auto max-w-80 px-4 pt-2">
         <svg
           viewBox="0 0 400 232"
           className="block w-full"
@@ -251,7 +251,7 @@ function FearGreedGauge({
         </svg>
       </div>
       {data && (
-        <dl className="m-0 grid grid-cols-2 gap-px border-t border-[var(--line)] bg-[var(--line)] sm:grid-cols-4">
+        <dl className="sentiment-gauge-history m-0 grid grid-cols-2 gap-px border-t border-[var(--line)] bg-[var(--line)] sm:grid-cols-4">
           {history.map((item) => {
             const itemState = sentimentState(item.score)
             return (
@@ -311,7 +311,7 @@ function FactorCards({ data }: { data: FearGreedData | null }) {
         </Heading>
         <span className="text-xs text-[var(--muted)]">7 indicadores</span>
       </div>
-      <div className="grid grid-cols-1 gap-px border-y border-[var(--line)] bg-[var(--line)] min-[360px]:grid-cols-2 sm:grid-cols-3">
+      <div className="sentiment-factors-grid grid grid-cols-1 gap-px border-y border-[var(--line)] bg-[var(--line)] min-[360px]:grid-cols-2 sm:grid-cols-3">
         {sentimentFactors.map((factor) => {
           const live = data?.factors.find((item) => item.id === factor.id)
           const display = factorDisplay[factor.id]
@@ -520,7 +520,7 @@ export default function SentimentDashboard() {
 
   return (
     <div className="sentiment-dashboard text-[var(--ink)]">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3 min-[861px]:mb-3 min-[861px]:pb-2">
+      <header className="sentiment-page-header mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3 min-[861px]:mb-3 min-[861px]:pb-2">
         <div>
           <Heading
             level={1}
@@ -678,11 +678,11 @@ export default function SentimentDashboard() {
                   : "Las fuentes no respondieron. No se mostrarán titulares inventados."}
               </div>
             )}
-            <div className="max-h-104 overflow-y-auto px-4" aria-busy={loading}>
+            <div className="sentiment-news-list max-h-104 overflow-y-auto px-4" aria-busy={loading}>
               {displayed.map((article) => (
                 <article
                   key={article.id}
-                  className="border-b border-[var(--line)] py-3 last:border-b-0"
+                  className="sentiment-news-item border-b border-[var(--line)] py-3 last:border-b-0"
                 >
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-xs font-semibold text-[var(--ink)]">
@@ -743,7 +743,7 @@ export default function SentimentDashboard() {
           <FactorCards data={fearGreed} />
         </div>
       </div>
-      <footer className="mt-4 border-t border-[var(--line)] pt-3 text-xs leading-relaxed text-[var(--muted)]">
+      <footer className="sentiment-footnote mt-4 border-t border-[var(--line)] pt-3 text-xs leading-relaxed text-[var(--muted)]">
         <span>
           Índice y factores: CNN Fear &amp; Greed Index. Noticias de fuentes
           públicas. No constituye asesoramiento de inversión.
