@@ -1,4 +1,4 @@
-# YMC Finanzas — IB1 Project
+# IB1 — Investment Business One
 
 Plataforma de análisis financiero para PyMEs: indicadores de mercado, índice GPR
 (riesgo geopolítico), análisis de sentimiento y herramientas de evaluación

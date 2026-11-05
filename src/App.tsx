@@ -20,8 +20,7 @@ import {
   importFinancialDocument,
   type DocumentImportResult,
 } from "./lib/documentImport";
-import brandReference from "./assets/ymc-brand-reference.jpeg";
-import ymvLogo from "./assets/ymv-finanzas-logo.jpg";
+import ib1Logo from "./assets/ib1-logo.jpg";
 import GPRDashboard from "./components/GPRDashboard";
 import SentimentDashboard from "./components/SentimentDashboard";
 import MarketDashboard from "./components/MarketDashboard";
@@ -1355,7 +1354,7 @@ function Reports({
               <strong>Alcance y limitaciones</strong>
               <p>El presente es un informe de análisis financiero confeccionado sobre datos ingresados por el usuario y, cuando corresponde, extraídos automáticamente de los documentos identificados en Fuentes y trazabilidad; no constituye un informe de auditoría ni una opinión profesional sobre estados contables. La extracción automática debe validarse contra los archivos originales. ROA y ROE utilizan saldos finales porque no se informaron promedios. No se consideraron inflación, estacionalidad, contingencias, composición de inventarios ni referencias sectoriales.</p>
             </div>
-            <footer className="report-footer"><Logo compact /><span>YMC · Decisiones financieras con información clara</span><time>{new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date())}</time></footer>
+            <footer className="report-footer"><Logo compact /><span>IB1 · Decisiones financieras con información clara</span><time>{new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date())}</time></footer>
           </div>
         </section>
       </article>
@@ -1713,14 +1712,14 @@ function UserMenu({ navigate }: { navigate: (section: Section) => void }) {
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`logo ${compact ? "compact" : ""}`}>
-      <svg
-        aria-label="YMC Finanzas"
+      <Image
+        alt="IB1 · Investment Business One"
         className="brand-reference"
-        role="img"
-        viewBox={compact ? "645 18 210 210" : "38 1125 220 100"}
-      >
-        <image height="1254" href={brandReference.src} width="1254" />
-      </svg>
+        src={ib1Logo}
+        width={74}
+        height={74}
+        unoptimized
+      />
     </div>
   );
 }
@@ -1843,7 +1842,7 @@ export default function App() {
   return (
     <div className={`app-shell${active === "datos" ? " gpr-mobile-shell" : ""}`}>
       <aside id="app-navigation" ref={sidebarRef} className={`sidebar ${menuOpen ? "open" : ""}`} inert={gprMobile && !menuOpen} role={gprMobile && menuOpen ? "dialog" : undefined} aria-modal={gprMobile && menuOpen ? true : undefined} aria-label={gprMobile && menuOpen ? "Navegación principal" : undefined}>
-        <div className="sidebar-top"><div className="logo sidebar-brand"><Image alt="" className="sidebar-brand-mark" src={ymvLogo} width={48} height={48} loading="eager" unoptimized /><span className="sidebar-brand-name"><small>Investment Business One</small></span></div></div>
+        <div className="sidebar-top"><div className="logo sidebar-brand"><Image alt="" className="sidebar-brand-mark" src={ib1Logo} width={48} height={48} loading="eager" unoptimized /><span className="sidebar-brand-name"><small>Investment Business One</small></span></div></div>
         <nav aria-label="Navegación principal">
           <span className="nav-label">ANALISIS DE MERCADO</span>
           {navigation.slice(0, 8).filter((item) => !["escenarios", "graficos", "informes"].includes(item.id)).map((item) => <Button className={active === item.id ? "active" : ""} key={item.id} variant="ghost" onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></Button>)}
@@ -1857,7 +1856,7 @@ export default function App() {
           {active === "datos" ? (
             <>
               <div className="logo gpr-mobile-brand">
-                <Image alt="" className="sidebar-brand-mark" src={ymvLogo} width={48} height={48} loading="eager" unoptimized />
+                <Image alt="" className="sidebar-brand-mark" src={ib1Logo} width={48} height={48} loading="eager" unoptimized />
                 <span>Investment Business One</span>
               </div>
               <div className="mobile-user-actions">
