@@ -10,7 +10,11 @@ import type {
   FearGreedFactorId,
   FearGreedResponse,
 } from "@/lib/fear-greed"
-import type { HeadlineSentiment, MarketNewsResponse } from "@/lib/sentiment-nlp"
+import type {
+  HeadlineSentiment,
+  MarketArticle,
+  MarketNewsResponse,
+} from "@/lib/sentiment-nlp"
 
 const panel = "rounded-lg border border-[var(--line)] bg-[var(--surface)]"
 const newsStates = {
@@ -91,6 +95,112 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       >
         {children}
       </Heading>
+    </div>
+  )
+}
+
+// Mini gráfico de línea con los últimos registros del factor. Usa un viewBox
+// fijo y estira el trazo al ancho disponible de la tarjeta.
+function Sparkline({
+  values,
+  color,
+  label,
+}: {
+  values: number[]
+  color: string
+  label: string
+}) {
+  if (values.length < 2) return null
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  const step = 100 / (values.length - 1)
+  const points = values.map((value, index) => {
+    const x = index * step
+    const y = 26 - ((value - min) / span) * 22
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  })
+  const area = `0,28 ${points.join(" ")} 100,28`
+  const [lastX, lastY] = points[points.length - 1].split(",")
+  return (
+    <svg
+      viewBox="0 0 100 30"
+      preserveAspectRatio="none"
+      className="block h-7 w-full"
+      role="img"
+      aria-label={`${label}: tendencia de los últimos ${values.length} registros`}
+    >
+      <line
+        x1="0"
+        x2="100"
+        y1="28"
+        y2="28"
+        stroke="var(--line)"
+        strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
+      />
+      <polygon points={area} fill={color} opacity="0.1" />
+      <polyline
+        points={points.join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle cx={lastX} cy={lastY} r="1.8" fill={color} />
+    </svg>
+  )
+}
+
+const publisherLogo = (article: MarketArticle) => {
+  for (const candidate of [article.sourceUrl, article.url]) {
+    if (!candidate) continue
+    try {
+      const host = new URL(candidate).hostname.replace(/^www\./, "")
+      if (host && host !== "news.google.com")
+        return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(host)}`
+    } catch {
+      // Ignora URLs inválidas y prueba la siguiente opción.
+    }
+  }
+  return null
+}
+
+function NewsThumbnail({ article }: { article: MarketArticle }) {
+  const sources = [article.image, publisherLogo(article)].filter(
+    (value): value is string => Boolean(value),
+  )
+  const [attempt, setAttempt] = useState(0)
+  const src = sources[attempt]
+  return (
+    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-md border border-[var(--line)] bg-[var(--background)]">
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          width={56}
+          height={56}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setAttempt((current) => current + 1)}
+          className={`h-full w-full ${
+            article.image && attempt === 0
+              ? "object-cover"
+              : "object-contain p-1.5"
+          }`}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="text-sm font-bold text-[var(--primary)]"
+        >
+          {article.source.trim().charAt(0).toUpperCase() || "?"}
+        </span>
+      )}
     </div>
   )
 }
@@ -362,7 +472,23 @@ function FactorCards({ data }: { data: FearGreedData | null }) {
                   />
                 )}
               </div>
-              <div className="mt-1.5 flex justify-between text-xs tabular-nums text-[var(--muted)]">
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {live?.series && live.series.length > 1 ? (
+                    <Sparkline
+                      values={live.series}
+                      color={state?.color ?? "var(--muted)"}
+                      label={factor.title}
+                    />
+                  ) : (
+                    <div className="h-7" aria-hidden="true" />
+                  )}
+                </div>
+                <span className="shrink-0 text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                  30 d
+                </span>
+              </div>
+              <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-[var(--muted)]">
                 <span>0</span>
                 <span>{score ?? "—"} / 100</span>
                 <span>100</span>
@@ -409,8 +535,9 @@ function FactorCards({ data }: { data: FearGreedData | null }) {
         </summary>
         <p className="mt-3 text-xs leading-relaxed">
           Cada barra muestra la puntuación de 0 a 100 que CNN asigna al factor.
-          El índice general es el promedio de esos siete componentes, calculado
-          por CNN.
+          La línea acompaña la evolución del indicador en los últimos 30
+          registros. El índice general es el promedio de esos siete
+          componentes, calculado por CNN.
         </p>
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           {sentimentFactors.map((factor) => (
@@ -697,19 +824,24 @@ export default function SentimentDashboard() {
                         : "Sin fecha"}
                     </time>
                   </div>
-                  <Link
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm leading-5 text-[var(--ink)] no-underline underline-offset-2 transition-colors hover:text-[var(--primary)] hover:underline"
-                  >
-                    {article.title}
-                  </Link>
-                  <span
-                    className={`mt-2 inline-block rounded-sm px-1.5 py-0.5 text-xs ${newsStates[article.sentiment].className}`}
-                  >
-                    {newsStates[article.sentiment].label}
-                  </span>
+                  <div className="flex items-start gap-2.5">
+                    <NewsThumbnail article={article} />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={article.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm leading-5 text-[var(--ink)] no-underline underline-offset-2 transition-colors hover:text-[var(--primary)] hover:underline"
+                      >
+                        {article.title}
+                      </Link>
+                      <span
+                        className={`mt-1.5 inline-block rounded-sm px-1.5 py-0.5 text-xs ${newsStates[article.sentiment].className}`}
+                      >
+                        {newsStates[article.sentiment].label}
+                      </span>
+                    </div>
+                  </div>
                 </article>
               ))}
               {!displayed.length && (

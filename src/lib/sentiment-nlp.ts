@@ -7,6 +7,10 @@ export type MarketArticle = {
   source: string
   publishedAt: string | null
   sentiment: HeadlineSentiment
+  /** Imagen del feed, cuando la fuente la incluye. */
+  image?: string | null
+  /** Sitio del medio, usado para mostrar su logo cuando no hay imagen. */
+  sourceUrl?: string | null
 }
 
 export type MarketNewsResponse = {

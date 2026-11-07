@@ -50,6 +50,44 @@ const text = (value: unknown): string => {
     .trim()
 }
 
+const safeImageUrl = (value: unknown) => {
+  if (typeof value !== "string" || value.length > 700) return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "https:" || url.username || url.password) return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
+// BBC publica media:thumbnail y El País media:content; Google News no incluye
+// imágenes, por eso el cliente usa el logo del medio como respaldo.
+const feedImage = (item: Record<string, unknown>) => {
+  const candidates = [
+    item["media:thumbnail"],
+    item["media:content"],
+    item.enclosure,
+  ]
+  for (const candidate of candidates) {
+    for (const entry of Array.isArray(candidate) ? candidate : [candidate]) {
+      const attributes = record(entry)
+      const type = attributes["@_type"]
+      const medium = attributes["@_medium"]
+      if (typeof type === "string" && !type.startsWith("image/")) continue
+      if (typeof medium === "string" && medium !== "image") continue
+      const image = safeImageUrl(attributes["@_url"])
+      if (image) return image
+    }
+  }
+  return null
+}
+
+const feedSourceUrl = (item: Record<string, unknown>) => {
+  const value = record(item.source)["@_url"]
+  return safeImageUrl(value)
+}
+
 async function readFeed(feed: typeof feeds[number]): Promise<MarketArticle[]> {
   const response = await fetch(feed.url, {
     signal: AbortSignal.timeout(6000),
@@ -88,6 +126,8 @@ async function readFeed(feed: typeof feeds[number]): Promise<MarketArticle[]> {
       source: text(item.source).slice(0, 100) || feed.name,
       publishedAt: Number.isFinite(date) ? new Date(date).toISOString() : null,
       sentiment: analyseHeadline(title),
+      image: feedImage(item),
+      sourceUrl: feedSourceUrl(item),
     })
   }
   return articles
