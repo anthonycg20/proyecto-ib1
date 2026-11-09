@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Button, Heading, Icon, Select } from "./ui"
+import NewsThumbnail from "./NewsThumbnail"
 import { sentimentFactors, sentimentState } from "@/data/sentiment-reference"
 import type {
   FearGreedData,
@@ -10,11 +11,7 @@ import type {
   FearGreedFactorId,
   FearGreedResponse,
 } from "@/lib/fear-greed"
-import type {
-  HeadlineSentiment,
-  MarketArticle,
-  MarketNewsResponse,
-} from "@/lib/sentiment-nlp"
+import type { HeadlineSentiment, MarketNewsResponse } from "@/lib/sentiment-nlp"
 
 const panel = "rounded-lg border border-[var(--line)] bg-[var(--surface)]"
 const newsStates = {
@@ -151,57 +148,6 @@ function Sparkline({
       />
       <circle cx={lastX} cy={lastY} r="1.8" fill={color} />
     </svg>
-  )
-}
-
-const publisherLogo = (article: MarketArticle) => {
-  for (const candidate of [article.sourceUrl, article.url]) {
-    if (!candidate) continue
-    try {
-      const host = new URL(candidate).hostname.replace(/^www\./, "")
-      if (host && host !== "news.google.com")
-        return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(host)}`
-    } catch {
-      // Ignora URLs inválidas y prueba la siguiente opción.
-    }
-  }
-  return null
-}
-
-function NewsThumbnail({ article }: { article: MarketArticle }) {
-  const sources = [article.image, publisherLogo(article)].filter(
-    (value): value is string => Boolean(value),
-  )
-  const [attempt, setAttempt] = useState(0)
-  const src = sources[attempt]
-  return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-md border border-[var(--line)] bg-[var(--background)]">
-      {src ? (
-        <img
-          src={src}
-          alt=""
-          aria-hidden="true"
-          width={56}
-          height={56}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => setAttempt((current) => current + 1)}
-          className={`h-full w-full ${
-            article.image && attempt === 0
-              ? "object-cover"
-              : "object-contain p-1.5"
-          }`}
-        />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="text-sm font-bold text-[var(--primary)]"
-        >
-          {article.source.trim().charAt(0).toUpperCase() || "?"}
-        </span>
-      )}
-    </div>
   )
 }
 

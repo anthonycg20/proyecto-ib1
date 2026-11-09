@@ -15,6 +15,7 @@ import {
 } from "react"
 import Link from "next/link"
 import { Button, Heading, Icon } from "./ui"
+import NewsThumbnail from "./NewsThumbnail"
 import type {
   HeatmapAsset,
   HeatmapSection,
@@ -1108,48 +1109,53 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
                   {article.source}
                 </span>
               </div>
-              <Link
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-sm font-medium leading-5 text-[var(--ink)] no-underline underline-offset-4 hover:text-[var(--primary)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
-              >
-                {article.title}
-                <span className="sr-only">
-                  {" "}
-                  (abre la fuente en otra pestaña)
-                </span>
-              </Link>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
-                <time
-                  dateTime={article.publishedAt ?? undefined}
-                  className="text-xs tabular-nums text-[var(--muted)]"
-                >
-                  {article.publishedAt
-                    ? newsDateFormat.format(new Date(article.publishedAt))
-                    : "Sin fecha disponible"}
-                </time>
-                <span
-                  title="Sentimiento inferido por análisis NLP, no nivel de impacto"
-                  className={`flex items-center gap-1 text-xs ${
-                    article.sentiment === "positive"
-                      ? positive
-                      : article.sentiment === "negative"
-                        ? negative
-                        : "text-[var(--muted)]"
-                  }`}
-                >
-                  <span
-                    className={`h-1 w-1 rounded-full ${
-                      article.sentiment === "positive"
-                        ? "bg-[var(--sentiment-greed)]"
-                        : article.sentiment === "negative"
-                          ? "bg-[var(--sentiment-critical)]"
-                          : "bg-[var(--muted)]"
-                    }`}
-                  />
-                  {sentimentLabels[article.sentiment]}
-                </span>
+              <div className="flex items-start gap-2.5">
+                <NewsThumbnail article={article} />
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm font-medium leading-5 text-[var(--ink)] no-underline underline-offset-4 hover:text-[var(--primary)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
+                  >
+                    {article.title}
+                    <span className="sr-only">
+                      {" "}
+                      (abre la fuente en otra pestaña)
+                    </span>
+                  </Link>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
+                    <time
+                      dateTime={article.publishedAt ?? undefined}
+                      className="text-xs tabular-nums text-[var(--muted)]"
+                    >
+                      {article.publishedAt
+                        ? newsDateFormat.format(new Date(article.publishedAt))
+                        : "Sin fecha disponible"}
+                    </time>
+                    <span
+                      title="Sentimiento inferido por análisis NLP, no nivel de impacto"
+                      className={`flex items-center gap-1 text-xs ${
+                        article.sentiment === "positive"
+                          ? positive
+                          : article.sentiment === "negative"
+                            ? negative
+                            : "text-[var(--muted)]"
+                      }`}
+                    >
+                      <span
+                        className={`h-1 w-1 rounded-full ${
+                          article.sentiment === "positive"
+                            ? "bg-[var(--sentiment-greed)]"
+                            : article.sentiment === "negative"
+                              ? "bg-[var(--sentiment-critical)]"
+                              : "bg-[var(--muted)]"
+                        }`}
+                      />
+                      {sentimentLabels[article.sentiment]}
+                    </span>
+                  </div>
+                </div>
               </div>
             </article>
           ))

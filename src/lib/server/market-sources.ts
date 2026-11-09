@@ -267,7 +267,66 @@ function jsonScripts(html: string, attribute: RegExp) {
 
 type AvailableHeatmap = Extract<HeatmapSection, { status: "available" }>
 
-export async function loadSp500Heatmap(): Promise<AvailableHeatmap> {
+// Datacenter IPs (Vercel) are routinely blocked by Finviz, so the S&P 500 map
+// falls back to StockAnalysis's server-rendered table and finally to Yahoo
+// charts over the largest index constituents.
+const STOCKANALYSIS_SP500_URL = "https://stockanalysis.com/list/sp-500-stocks/"
+
+const SP500_FALLBACK_SYMBOLS = [
+  "NVDA",
+  "MSFT",
+  "AAPL",
+  "AMZN",
+  "GOOGL",
+  "AVGO",
+  "META",
+  "TSLA",
+  "BRK-B",
+  "LLY",
+  "JPM",
+  "WMT",
+  "V",
+  "ORCL",
+  "MA",
+  "XOM",
+  "COST",
+  "NFLX",
+  "JNJ",
+  "PG",
+]
+
+const decodeEntities = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+
+const plainText = (value: string) =>
+  decodeEntities(value.replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim()
+
+const parseNumber = (value: string) => {
+  const cleaned = value.replace(/[$%\s]/g, "").replace(/,/g, "")
+  if (!cleaned || cleaned === "—" || cleaned === "-") return null
+  const number = Number.parseFloat(cleaned)
+  return Number.isFinite(number) ? number : null
+}
+
+// StockAnalysis prints market caps as "4.98T" / "812.4B" / "12.3M".
+const parseMarketCap = (value: string) => {
+  const match = /^([\d.,]+)\s*([TBM])$/i.exec(value.trim())
+  if (!match) return null
+  const base = parseNumber(match[1])
+  const scales = { T: 1e12, B: 1e9, M: 1e6 } as const
+  const scale = scales[match[2].toUpperCase() as keyof typeof scales]
+  return base === null ? null : base * scale
+}
+
+async function loadFinvizSp500(): Promise<AvailableHeatmap> {
   const html = await fetchText(FINVIZ_SP500_URL, "text/html")
   const rows = jsonScripts(html, /data-ssr-props=/i)
     .map((props) => record(record(props).data).rows)
@@ -304,6 +363,103 @@ export async function loadSp500Heatmap(): Promise<AvailableHeatmap> {
     asOf: new Date().toISOString(),
     assets: assets.sort((a, b) => b.weight - a.weight).slice(0, 20),
   }
+}
+
+async function loadStockAnalysisSp500(): Promise<AvailableHeatmap> {
+  const html = await fetchText(STOCKANALYSIS_SP500_URL, "text/html")
+  // The page ships Svelte marker comments between every node; removing them
+  // first keeps the row/cell regexes readable.
+  const body = html.replace(/<!--[\s\S]*?-->/g, "")
+  const table = /<table[^>]*id="main-table"[\s\S]*?<\/table>/i.exec(body)?.[0]
+  if (!table) throw new Error("StockAnalysis table not found")
+
+  const companies = new Set<string>()
+  const assets: HeatmapAsset[] = []
+  for (const row of table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(
+      (cell) => plainText(cell[1]),
+    )
+    // Columns: rank, symbol, company, weight, price, change, market cap.
+    if (cells.length < 7) continue
+    const symbol = cells[1].replace(/\s+/g, "")
+    const name = cells[2]
+    const weight = parseNumber(cells[3])
+    const change = parseNumber(cells[5])
+    if (!symbol || !name || change === null) continue
+    if (companies.has(name)) continue
+    companies.add(name)
+    assets.push({
+      symbol,
+      name,
+      weight: weight ?? parseMarketCap(cells[6]) ?? 1,
+      change: round(change, 2),
+      price: parseNumber(cells[4]),
+      detail: null,
+    })
+  }
+  if (assets.length < 5)
+    throw new Error("StockAnalysis returned too few rows")
+  return {
+    status: "available",
+    source: "StockAnalysis · S&P 500",
+    sizing: "marketCap",
+    asOf: new Date().toISOString(),
+    assets: assets.sort((a, b) => b.weight - a.weight).slice(0, 20),
+  }
+}
+
+async function loadYahooSp500(): Promise<AvailableHeatmap> {
+  const results = await Promise.allSettled(
+    SP500_FALLBACK_SYMBOLS.map(async (symbol): Promise<HeatmapAsset> => {
+      const { meta } = await yahooChart(symbol, "1d", "1d")
+      const price = finite(meta.regularMarketPrice)
+      const previous =
+        finite(meta.chartPreviousClose) ?? finite(meta.previousClose)
+      const reported = finite(meta.regularMarketChangePercent)
+      const change =
+        reported ??
+        (price !== null && previous ? (price / previous - 1) * 100 : null)
+      if (price === null || change === null)
+        throw new Error(`No quote for ${symbol}`)
+      return {
+        symbol,
+        name: text(meta.longName) || text(meta.shortName) || symbol,
+        weight: 1,
+        change: round(change, 2),
+        price,
+        detail: text(meta.exchangeName) || null,
+      }
+    }),
+  )
+  const assets = results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  )
+  if (assets.length < 8) throw new Error("Yahoo returned too few quotes")
+  return {
+    status: "available",
+    source: "Yahoo Finance",
+    sizing: "equal",
+    asOf: new Date().toISOString(),
+    assets,
+  }
+}
+
+export async function loadSp500Heatmap(): Promise<AvailableHeatmap> {
+  let lastError: unknown
+  for (const loader of [
+    loadFinvizSp500,
+    loadStockAnalysisSp500,
+    loadYahooSp500,
+  ]) {
+    try {
+      return await loader()
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("S&P 500 heatmap unavailable")
 }
 
 const cryptoFallbackOrder = [
