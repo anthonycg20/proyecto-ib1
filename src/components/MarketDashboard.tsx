@@ -1280,9 +1280,10 @@ export default function MarketDashboard({
           <Icon name="info" size={13} />
         </span>
         <span>
-          Cotizaciones: Yahoo Finance. Mapas de calor: Finviz (cripto
-          dimensionado por capitalización de Yahoo Finance). Los precios pueden
-          tener demora. GPR: Caldara &amp; Iacoviello. Noticias: fuentes
+          Cotizaciones: Yahoo Finance. Mapas de calor: Finviz, con respaldo en
+          StockAnalysis y Yahoo Finance cuando la fuente principal no responde
+          (cripto dimensionado por capitalización de Yahoo Finance). Los precios
+          pueden tener demora. GPR: Caldara &amp; Iacoviello. Noticias: fuentes
           públicas con fecha de publicación. No constituye asesoramiento de
           inversión.
         </span>
