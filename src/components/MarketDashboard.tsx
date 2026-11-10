@@ -16,6 +16,7 @@ import {
 import Link from "next/link"
 import { Button, Heading, Icon } from "./ui"
 import NewsThumbnail from "./NewsThumbnail"
+import EconomicCalendar from "./EconomicCalendar"
 import type {
   HeatmapAsset,
   HeatmapSection,
@@ -1253,6 +1254,9 @@ export default function MarketDashboard({
         loading={loading}
         status={status}
       />
+      <div className="mb-3">
+        <EconomicCalendar />
+      </div>
       <div className="grid items-stretch gap-3 min-[1180px]:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">
           <Heatmap
@@ -1282,10 +1286,10 @@ export default function MarketDashboard({
         <span>
           Cotizaciones: Yahoo Finance. Mapas de calor: Finviz, con respaldo en
           StockAnalysis y Yahoo Finance cuando la fuente principal no responde
-          (cripto dimensionado por capitalización de Yahoo Finance). Los precios
-          pueden tener demora. GPR: Caldara &amp; Iacoviello. Noticias: fuentes
-          públicas con fecha de publicación. No constituye asesoramiento de
-          inversión.
+          (cripto dimensionado por capitalización de Yahoo Finance). Calendario
+          económico: Forex Factory. Los precios pueden tener demora. GPR: Caldara
+          &amp; Iacoviello. Noticias: fuentes públicas con fecha de publicación.
+          No constituye asesoramiento de inversión.
         </span>
       </footer>
     </div>
