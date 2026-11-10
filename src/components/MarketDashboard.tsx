@@ -168,6 +168,20 @@ function useMarketOverview() {
   return { data, loading, error }
 }
 
+const tickerBadges: Record<string, { text: string; bg: string }> = {
+  spx: { text: "500", bg: "#1d63d8" },
+  nasdaq: { text: "100", bg: "#0b8f7d" },
+  dow: { text: "DJ", bg: "#2f4fbf" },
+  vix: { text: "VIX", bg: "#6d3fd4" },
+  us10y: { text: "10A", bg: "#475569" },
+  dxy: { text: "$", bg: "#0b7285" },
+  usdpen: { text: "S/", bg: "#c92a2a" },
+  wti: { text: "WTI", bg: "#374151" },
+  gold: { text: "Au", bg: "#b7791f" },
+  copper: { text: "Cu", bg: "#a0522d" },
+  btc: { text: "₿", bg: "#f7931a" },
+}
+
 function MarketTicker({
   section,
   loading,
@@ -178,34 +192,39 @@ function MarketTicker({
   const items = section?.status === "available" ? section.items : []
   const indicatorCards = items.map((item) => {
     const risk = item.risingIsRisk ? item.change > 0 : item.change < 0
+    const badge = tickerBadges[item.id] ?? {
+      text: item.label.slice(0, 3),
+      bg: "#334155",
+    }
     return (
       <article
         key={item.id}
         title={`${item.symbol} · último dato ${newsDateFormat.format(new Date(item.marketTime))}`}
-        className="w-[6.5rem] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1.5"
+        className="flex shrink-0 items-center gap-2 border-r border-white/10 px-3 py-2"
       >
-        <span className="block whitespace-nowrap text-[10px] font-medium tracking-wide text-[var(--muted)]">
+        <span
+          aria-hidden="true"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[8px] font-bold uppercase leading-none text-white"
+          style={{ backgroundColor: badge.bg }}
+        >
+          {badge.text}
+        </span>
+        <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-[#9fb0c9]">
           {item.label}
         </span>
-        <strong className="mt-0.5 block whitespace-nowrap text-xs font-semibold tabular-nums tracking-tight">
+        <strong className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-[#5eead4]">
           {formatIndicatorValue(item)}
         </strong>
         <span
-          className={`mt-0.5 flex items-center gap-1 whitespace-nowrap text-[10px] tabular-nums ${
+          className={`whitespace-nowrap text-[10px] tabular-nums ${
             item.change === 0
-              ? "text-[var(--muted)]"
+              ? "text-[#94a3b8]"
               : risk
-                ? negative
-                : positive
+                ? "text-[#ff6b7a]"
+                : "text-[#4ade80]"
           }`}
         >
-          <svg width="7" height="7" viewBox="0 0 8 8" aria-hidden="true">
-            <path
-              d={item.change < 0 ? "M0 1h8L4 7Z" : "M0 7h8L4 1Z"}
-              fill="currentColor"
-            />
-          </svg>
-          {formatIndicatorChange(item)}
+          ({formatIndicatorChange(item)})
         </span>
       </article>
     )
@@ -215,35 +234,38 @@ function MarketTicker({
     <section aria-label="Indicadores globales" className="mb-2.5 min-w-0">
       {items.length ? (
         <div
-          className="market-ticker-viewport rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
+          className="market-ticker-viewport overflow-hidden rounded-md bg-[#0b1526] pb-0! ring-1 ring-black/10 focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
           tabIndex={0}
           role="region"
           aria-label="Indicadores globales en movimiento continuo"
         >
           <div className="market-ticker-track">
-            <div className="market-ticker-group">{indicatorCards}</div>
-            <div className="market-ticker-group" aria-hidden="true">
+            <div className="market-ticker-group gap-0! pr-0!">{indicatorCards}</div>
+            <div className="market-ticker-group gap-0! pr-0!" aria-hidden="true">
               {indicatorCards}
             </div>
           </div>
         </div>
       ) : loading ? (
-        <div className="flex gap-2 overflow-hidden" role="status">
+        <div
+          className="flex overflow-hidden rounded-md bg-[#0b1526]"
+          role="status"
+        >
           <span className="sr-only">Cargando cotizaciones</span>
           {[0, 1, 2, 3, 4, 5, 6].map((item) => (
             <div
               key={item}
-              className="h-14 w-[6.5rem] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 motion-safe:animate-pulse"
+              className="flex h-9 w-44 shrink-0 items-center gap-2 border-r border-white/10 px-3"
             >
-              <div className="h-2 w-2/3 rounded bg-[var(--line)]" />
-              <div className="mt-1.5 h-3 w-4/5 rounded bg-[var(--line)]" />
-              <div className="mt-1.5 h-2 w-1/2 rounded bg-[var(--line)]" />
+              <div className="h-5 w-5 shrink-0 rounded-full bg-white/10" />
+              <div className="h-2 w-10 rounded bg-white/10" />
+              <div className="h-2 w-14 rounded bg-white/10" />
             </div>
           ))}
         </div>
       ) : (
         <p
-          className="m-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-4 text-xs text-[var(--muted)]"
+          className="m-0 rounded-md bg-[#0b1526] px-3 py-2.5 text-[11px] text-[#9fb0c9]"
           role="status"
         >
           No se pudieron obtener cotizaciones. No mostramos valores inventados;
