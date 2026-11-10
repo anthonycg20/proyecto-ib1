@@ -73,11 +73,6 @@ const newsDateFormat = new Intl.DateTimeFormat("es", {
   hour: "2-digit",
   minute: "2-digit",
 })
-const timeFormat = new Intl.DateTimeFormat("es", {
-  hour: "2-digit",
-  minute: "2-digit",
-})
-
 const utcDate = (date: string) => new Date(`${date}T00:00:00Z`)
 
 function formatIndicatorValue(item: MarketIndicator) {
@@ -173,21 +168,12 @@ function useMarketOverview() {
   return { data, loading, error }
 }
 
-type TickerStatus = {
-  tone: string
-  text: string
-}
-
 function MarketTicker({
   section,
-  checkedAt,
   loading,
-  status,
 }: {
   section: IndicatorsSection | undefined
-  checkedAt: string | undefined
   loading: boolean
-  status: TickerStatus
 }) {
   const items = section?.status === "available" ? section.items : []
   const indicatorCards = items.map((item) => {
@@ -226,29 +212,7 @@ function MarketTicker({
   })
 
   return (
-    <section aria-label="Indicadores globales" className="mb-3 min-w-0">
-      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">
-        <span className="font-medium">Mercados globales</span>
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {}
-          <span
-            className="hidden items-center gap-1.5 min-[861px]:flex"
-            role="status"
-          >
-            <span
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.tone}`}
-            />
-            {status.text}
-          </span>
-          <span>
-            {items.length && checkedAt
-              ? `Yahoo Finance · consulta ${timeFormat.format(new Date(checkedAt))} · puede tener demora`
-              : loading
-                ? "Consultando Yahoo Finance"
-                : "Yahoo Finance no disponible"}
-          </span>
-        </span>
-      </div>
+    <section aria-label="Indicadores globales" className="mb-2.5 min-w-0">
       {items.length ? (
         <div
           className="market-ticker-viewport rounded-lg focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
@@ -1207,26 +1171,10 @@ export default function MarketDashboard({
 }: {
   navigate: (section: "datos" | "diagnostico") => void
 }) {
-  const { data, loading, error } = useMarketOverview()
-  const status = {
-    tone: !data
-      ? loading
-        ? "bg-[var(--muted)]"
-        : "bg-[var(--orange)]"
-      : error
-        ? "bg-[var(--orange)]"
-        : "bg-[var(--sentiment-greed)]",
-    text: !data
-      ? loading
-        ? "Conectando con fuentes de mercado"
-        : "Fuentes de mercado no disponibles"
-      : error
-        ? "Algunas fuentes no respondieron"
-        : "Datos de mercado · actualización cada 60 s",
-  }
+  const { data, loading } = useMarketOverview()
   return (
     <div className="min-w-0 text-[var(--ink)]">
-      <header className="inline-page-header mb-5 flex flex-wrap items-center justify-between gap-3">
+      <header className="inline-page-header mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Heading
             level={1}
@@ -1238,26 +1186,12 @@ export default function MarketDashboard({
             Una mirada global a los mercados, el riesgo y las noticias.
           </p>
         </div>
-        <span
-          className="flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--muted)]"
-          role="status"
-        >
-          <span
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.tone}`}
-          />
-          {status.text}
-        </span>
       </header>
-      <MarketTicker
-        section={data?.indicators}
-        checkedAt={data?.checkedAt}
-        loading={loading}
-        status={status}
-      />
-      <div className="grid items-stretch gap-3 min-[1180px]:h-[46rem] min-[1180px]:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
-        <div className="grid min-h-0 min-w-0 gap-3 min-[1180px]:grid-rows-[minmax(0,1fr)_auto]">
+      <MarketTicker section={data?.indicators} loading={loading} />
+      <div className="grid items-stretch gap-2.5 min-[1180px]:h-[46rem] min-[1180px]:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
+        <div className="grid min-h-0 min-w-0 gap-2.5 min-[1180px]:grid-rows-[minmax(0,1fr)_auto]">
           <EconomicCalendar />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2.5 sm:grid-cols-2">
             <Heatmap
               title="S&P 500 Heatmap"
               badge="1D"
@@ -1276,10 +1210,10 @@ export default function MarketDashboard({
         </div>
         <NewsFeed openSentiment={() => navigate("diagnostico")} />
       </div>
-      <div className="mt-3">
+      <div className="mt-2.5">
         <ComparisonChart openGPR={() => navigate("datos")} />
       </div>
-      <footer className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]">
+      <footer className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]">
         <span className="mt-0.5 shrink-0">
           <Icon name="info" size={13} />
         </span>
