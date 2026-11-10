@@ -1254,25 +1254,27 @@ export default function MarketDashboard({
         loading={loading}
         status={status}
       />
-      <div className="grid items-stretch gap-3 min-[1180px]:h-[38rem] min-[1180px]:grid-cols-[minmax(0,1.75fr)_minmax(300px,1fr)]">
-        <EconomicCalendar />
+      <div className="grid items-stretch gap-3 min-[1180px]:h-[46rem] min-[1180px]:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
+        <div className="grid min-h-0 min-w-0 gap-3 min-[1180px]:grid-rows-[minmax(0,1fr)_auto]">
+          <EconomicCalendar />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Heatmap
+              title="S&P 500 Heatmap"
+              badge="1D"
+              subtitle="Top 20 por capitalización"
+              section={data?.equities}
+              loading={loading}
+            />
+            <Heatmap
+              title="Crypto Heatmap"
+              badge="1D"
+              subtitle="Principales criptoactivos"
+              section={data?.crypto}
+              loading={loading}
+            />
+          </div>
+        </div>
         <NewsFeed openSentiment={() => navigate("diagnostico")} />
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Heatmap
-          title="S&P 500 Heatmap"
-          badge="1D"
-          subtitle="Top 20 por capitalización"
-          section={data?.equities}
-          loading={loading}
-        />
-        <Heatmap
-          title="Crypto Heatmap"
-          badge="1D"
-          subtitle="Principales criptoactivos"
-          section={data?.crypto}
-          loading={loading}
-        />
       </div>
       <div className="mt-3">
         <ComparisonChart openGPR={() => navigate("datos")} />
