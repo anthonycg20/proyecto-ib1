@@ -261,18 +261,18 @@ export default function EconomicCalendar() {
             <span className="h-3 w-0.5 shrink-0 rounded-full bg-[var(--bright)]" />
             <Heading
               level={2}
-              className="font-sans! text-[13px]! font-semibold! tracking-tight!"
+              className="font-sans! text-[12px]! font-semibold! tracking-tight!"
             >
               Calendario económico
             </Heading>
           </div>
           {data && (
-            <span className="text-[11px] text-[var(--muted)]">
+            <span className="text-[10px] text-[var(--muted)]">
               {rangeLabel(data.weekStart, data.weekEnd)}
             </span>
           )}
           <span
-            className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]"
+            className="flex items-center gap-1.5 text-[10px] text-[var(--muted)]"
             role="status"
           >
             <span
@@ -307,7 +307,7 @@ export default function EconomicCalendar() {
                   type="button"
                   onClick={() => setImpact(option.value)}
                   aria-pressed={active}
-                  className={`rounded-[5px] px-1.5 py-[2px] text-[10px] font-medium transition-colors ${
+                  className={`rounded-[5px] px-1.5 py-[2px] text-[10px]! font-medium! transition-colors ${
                     active
                       ? "bg-[var(--surface)] text-[var(--ink)] shadow-[0_1px_2px_rgba(16,42,86,0.12)]"
                       : "text-[var(--muted)] hover:text-[var(--ink)]"
