@@ -196,16 +196,16 @@ function MarketTicker({
       <article
         key={item.id}
         title={`${item.symbol} · último dato ${newsDateFormat.format(new Date(item.marketTime))}`}
-        className="w-30 shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5"
+        className="w-[6.5rem] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1.5"
       >
-        <span className="block whitespace-nowrap text-xs font-medium tracking-wide text-[var(--muted)]">
+        <span className="block whitespace-nowrap text-[10px] font-medium tracking-wide text-[var(--muted)]">
           {item.label}
         </span>
-        <strong className="mt-1 block whitespace-nowrap text-sm font-semibold tabular-nums tracking-tight">
+        <strong className="mt-0.5 block whitespace-nowrap text-xs font-semibold tabular-nums tracking-tight">
           {formatIndicatorValue(item)}
         </strong>
         <span
-          className={`mt-1 flex items-center gap-1 whitespace-nowrap text-xs tabular-nums ${
+          className={`mt-0.5 flex items-center gap-1 whitespace-nowrap text-[10px] tabular-nums ${
             item.change === 0
               ? "text-[var(--muted)]"
               : risk
@@ -226,8 +226,8 @@ function MarketTicker({
   })
 
   return (
-    <section aria-label="Indicadores globales" className="mb-4 min-w-0">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">
+    <section aria-label="Indicadores globales" className="mb-3 min-w-0">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">
         <span className="font-medium">Mercados globales</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {}
@@ -269,11 +269,11 @@ function MarketTicker({
           {[0, 1, 2, 3, 4, 5, 6].map((item) => (
             <div
               key={item}
-              className="h-19 w-30 shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 motion-safe:animate-pulse"
+              className="h-14 w-[6.5rem] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 motion-safe:animate-pulse"
             >
               <div className="h-2 w-2/3 rounded bg-[var(--line)]" />
-              <div className="mt-2.5 h-3 w-4/5 rounded bg-[var(--line)]" />
-              <div className="mt-2.5 h-2 w-1/2 rounded bg-[var(--line)]" />
+              <div className="mt-1.5 h-3 w-4/5 rounded bg-[var(--line)]" />
+              <div className="mt-1.5 h-2 w-1/2 rounded bg-[var(--line)]" />
             </div>
           ))}
         </div>

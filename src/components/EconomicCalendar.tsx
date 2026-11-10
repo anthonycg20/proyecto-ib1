@@ -307,7 +307,7 @@ export default function EconomicCalendar() {
                   type="button"
                   onClick={() => setImpact(option.value)}
                   aria-pressed={active}
-                  className={`rounded-[5px] px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  className={`rounded-[5px] px-1.5 py-[2px] text-[10px] font-medium transition-colors ${
                     active
                       ? "bg-[var(--surface)] text-[var(--ink)] shadow-[0_1px_2px_rgba(16,42,86,0.12)]"
                       : "text-[var(--muted)] hover:text-[var(--ink)]"
@@ -322,7 +322,7 @@ export default function EconomicCalendar() {
             aria-label="Filtrar por divisa"
             value={currency}
             onChange={(event) => setCurrency(event.target.value)}
-            className="min-h-6! w-26! rounded-sm! border-[var(--line)]! px-1.5! py-0.5! text-[11px]!"
+            className="min-h-6! w-26! rounded-sm! border-[var(--line)]! px-1.5! py-0.5! text-[10px]!"
           >
             <option value="all">Todas las divisas</option>
             {currencies.map((code) => (
