@@ -1000,7 +1000,7 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
 
   return (
     <aside
-      className={`${panel} flex h-full flex-col min-[1180px]:col-start-2 min-[1180px]:row-start-1 min-[1180px]:row-span-2`}
+      className={`${panel} flex h-full flex-col`}
       aria-label="Noticias de fuentes públicas"
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
@@ -1076,7 +1076,7 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
         </p>
       )}
       <div
-        className="max-h-144 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-136"
+        className="max-h-144 min-h-0 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-none"
         aria-busy={loading}
       >
         {loading && !news ? (
@@ -1254,30 +1254,28 @@ export default function MarketDashboard({
         loading={loading}
         status={status}
       />
-      <div className="mb-3">
+      <div className="grid items-stretch gap-3 min-[1180px]:h-[38rem] min-[1180px]:grid-cols-[minmax(0,1.75fr)_minmax(300px,1fr)]">
         <EconomicCalendar />
-      </div>
-      <div className="grid items-stretch gap-3 min-[1180px]:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <Heatmap
-            title="S&P 500 Heatmap"
-            badge="1D"
-            subtitle="Top 20 por capitalización"
-            section={data?.equities}
-            loading={loading}
-          />
-          <Heatmap
-            title="Crypto Heatmap"
-            badge="1D"
-            subtitle="Principales criptoactivos"
-            section={data?.crypto}
-            loading={loading}
-          />
-        </div>
-        <div className="min-w-0 min-[1180px]:col-start-1 min-[1180px]:row-start-2">
-          <ComparisonChart openGPR={() => navigate("datos")} />
-        </div>
         <NewsFeed openSentiment={() => navigate("diagnostico")} />
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Heatmap
+          title="S&P 500 Heatmap"
+          badge="1D"
+          subtitle="Top 20 por capitalización"
+          section={data?.equities}
+          loading={loading}
+        />
+        <Heatmap
+          title="Crypto Heatmap"
+          badge="1D"
+          subtitle="Principales criptoactivos"
+          section={data?.crypto}
+          loading={loading}
+        />
+      </div>
+      <div className="mt-3">
+        <ComparisonChart openGPR={() => navigate("datos")} />
       </div>
       <footer className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]">
         <span className="mt-0.5 shrink-0">

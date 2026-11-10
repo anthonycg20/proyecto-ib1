@@ -51,16 +51,27 @@ async function fetchText(
   timeoutMs: number,
   headers: Record<string, string>,
   maxChars: number,
+  attempts = 1,
 ) {
-  const response = await fetch(url, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(timeoutMs),
-    headers: { "User-Agent": USER_AGENT, ...headers },
-  })
-  if (!response.ok) throw new Error(`Upstream returned ${response.status}`)
-  const body = await response.text()
-  if (body.length > maxChars) throw new Error("Upstream body too large")
-  return body
+  let lastError: unknown = new Error("Upstream failed")
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { "User-Agent": USER_AGENT, ...headers },
+      })
+      if (!response.ok) throw new Error(`Upstream returned ${response.status}`)
+      const body = await response.text()
+      if (body.length > maxChars) throw new Error("Upstream body too large")
+      return body
+    } catch (error) {
+      lastError = error
+      if (attempt + 1 < attempts)
+        await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+  }
+  throw lastError
 }
 
 const clean = (value: unknown, max = 240) => {
@@ -221,6 +232,7 @@ export async function loadEconomicCalendar(): Promise<EconomicCalendarAvailable>
     FEED_TIMEOUT_MS,
     { Accept: "application/json" },
     MAX_FEED_CHARS,
+    3,
   )
   const feed = parseFeed(feedBody)
   const rows = await loadActuals()

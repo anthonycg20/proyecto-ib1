@@ -46,20 +46,40 @@ const updatedFormat = new Intl.DateTimeFormat("es-PE", {
 
 const impactMeta: Record<
   EconomicImpact,
-  { label: string; dot: string; text: string }
+  { label: string; bars: number; bar: string }
 > = {
-  high: { label: "Alto", dot: "bg-[var(--red)]", text: "text-[var(--red)]" },
+  high: {
+    label: "Alto",
+    bars: 3,
+    bar: "bg-[var(--red)]",
+  },
   medium: {
     label: "Medio",
-    dot: "bg-[var(--orange)]",
-    text: "text-[var(--orange)]",
+    bars: 2,
+    bar: "bg-[var(--orange)]",
   },
-  low: { label: "Bajo", dot: "bg-[#e2b203]", text: "text-[#9a7a00]" },
+  low: {
+    label: "Bajo",
+    bars: 1,
+    bar: "bg-[#e2b203]",
+  },
   holiday: {
     label: "Festivo",
-    dot: "bg-[var(--sentiment-neutral)]",
-    text: "text-[var(--muted)]",
+    bars: 0,
+    bar: "bg-[var(--sentiment-neutral)]",
   },
+}
+
+const flagCodes: Record<string, string> = {
+  AUD: "au",
+  CAD: "ca",
+  CHF: "ch",
+  CNY: "cn",
+  EUR: "eu",
+  GBP: "gb",
+  JPY: "jp",
+  NZD: "nz",
+  USD: "us",
 }
 
 const impactFilters: Array<{ value: "all" | EconomicImpact; label: string }> = [
@@ -90,6 +110,72 @@ const rangeLabel = (from: string, to: string) => {
 }
 
 const value = (text: string | null) => (text && text.trim() ? text : "—")
+
+// Circular flag per currency; falls back to the code when there is no country.
+function CurrencyFlag({ currency }: { currency: string }) {
+  const [failed, setFailed] = useState(false)
+  const code = flagCodes[currency]
+  if (!code || failed) {
+    return (
+      <span
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--background)] text-[9px] font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]"
+        title={currency}
+      >
+        {currency.slice(0, 2)}
+      </span>
+    )
+  }
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${code}.png`}
+      alt={currency}
+      title={currency}
+      width={20}
+      height={20}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="h-5 w-5 rounded-full object-cover ring-1 ring-black/10"
+    />
+  )
+}
+
+// Three ascending bars: one for low, two for medium, three for high.
+function ImpactBars({ impact }: { impact: EconomicImpact }) {
+  const meta = impactMeta[impact]
+  if (impact === "holiday") {
+    return (
+      <span
+        role="img"
+        aria-label={`Impacto ${meta.label}`}
+        title={meta.label}
+        className="inline-flex h-3 items-center text-[var(--sentiment-neutral)]"
+      >
+        <span className="h-2.5 w-2.5 rounded-[2px] border border-current" />
+      </span>
+    )
+  }
+  return (
+    <span
+      role="img"
+      aria-label={`Impacto ${meta.label}`}
+      title={meta.label}
+      className="inline-flex items-end gap-[3px]"
+    >
+      {[6, 9, 12].map((height, index) => (
+        <span
+          key={height}
+          className={`w-[4px] rounded-[1px] ${
+            index < meta.bars ? meta.bar : "bg-[var(--line)]"
+          }`}
+          style={{ height }}
+        />
+      ))}
+    </span>
+  )
+}
+
 
 function useEconomicCalendar() {
   const [data, setData] = useState<EconomicCalendarAvailable | null>(null)
@@ -165,8 +251,11 @@ export default function EconomicCalendar() {
   const released = data?.events.filter((event) => event.actual).length ?? 0
 
   return (
-    <section className={panel} aria-label="Calendario económico">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--line)] px-4 py-3">
+    <section
+      className={`${panel} flex flex-col`}
+      aria-label="Calendario económico"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--line)] px-3.5 py-2.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex items-center gap-2">
             <span className="h-3.5 w-0.5 shrink-0 rounded-full bg-[var(--bright)]" />
@@ -284,35 +373,35 @@ export default function EconomicCalendar() {
         </p>
       ) : (
         <>
-          <p className="m-0 border-b border-[var(--line)] bg-[var(--background)] px-4 py-1.5 text-[11px] text-[var(--muted)] sm:hidden">
+          <p className="m-0 border-b border-[var(--line)] bg-[var(--background)] px-3.5 py-1.5 text-[11px] text-[var(--muted)] sm:hidden">
             Deslizá la tabla para ver Actual, Previsión y Anterior.
           </p>
-          <div className="max-h-104 overflow-auto">
-            <table className="w-full min-w-[660px] border-collapse text-left text-xs">
+          <div className="max-h-104 min-h-0 flex-1 overflow-auto min-[1180px]:max-h-none">
+            <table className="w-full min-w-[560px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-[var(--surface)]">
               <tr className="border-b border-[var(--line)] text-[11px] uppercase tracking-wide text-[var(--muted)]">
-                <th scope="col" className="py-2 pl-4 pr-2 font-medium">
+                <th scope="col" className="py-2 pl-3.5 pr-1.5 font-medium">
                   Fecha
                 </th>
-                <th scope="col" className="px-2 py-2 font-medium">
+                <th scope="col" className="px-1.5 py-2 text-left! font-medium">
                   Hora
                 </th>
-                <th scope="col" className="px-2 py-2 font-medium">
+                <th scope="col" className="px-1.5 py-2 text-left! font-medium">
                   Divisa
                 </th>
-                <th scope="col" className="px-2 py-2 font-medium">
+                <th scope="col" className="px-1.5 py-2 text-left! font-medium">
                   Impacto
                 </th>
-                <th scope="col" className="px-2 py-2 font-medium">
+                <th scope="col" className="px-1.5 py-2 text-left! font-medium">
                   Evento
                 </th>
-                <th scope="col" className="px-2 py-2 text-right font-medium">
+                <th scope="col" className="px-1.5 py-2 text-right font-medium">
                   Actual
                 </th>
-                <th scope="col" className="px-2 py-2 text-right font-medium">
+                <th scope="col" className="px-1.5 py-2 text-right font-medium">
                   Previsión
                 </th>
-                <th scope="col" className="py-2 pl-2 pr-4 text-right font-medium">
+                <th scope="col" className="py-2 pl-1.5 pr-3.5 text-right font-medium">
                   Anterior
                 </th>
               </tr>
@@ -321,7 +410,6 @@ export default function EconomicCalendar() {
               {groups.map((group, groupIndex) => {
                 const isToday = group.key === today
                 return group.events.map((event, index) => {
-                  const meta = impactMeta[event.impact]
                   const shade =
                     groupIndex % 2 === 1 ? "bg-[var(--background)]" : ""
                   return (
@@ -333,14 +421,14 @@ export default function EconomicCalendar() {
                         <th
                           scope="rowgroup"
                           rowSpan={group.events.length}
-                          className="w-24 border-r border-[var(--line)] bg-transparent! py-2! pl-4! pr-2! text-left! align-top text-xs! font-medium! normal-case!"
+                          className="w-20 border-r border-[var(--line)] bg-transparent! py-1.5! pl-3.5! pr-1.5! text-left! align-top text-xs! font-medium! normal-case!"
                         >
                           <span
-                            className={
+                            className={`whitespace-nowrap ${
                               isToday
                                 ? "text-[var(--bright)]"
                                 : "text-[var(--ink)]"
-                            }
+                            }`}
                           >
                             {dayLabel(event.date)}
                           </span>
@@ -351,28 +439,20 @@ export default function EconomicCalendar() {
                           )}
                         </th>
                       )}
-                      <td className="whitespace-nowrap px-2 py-2 text-[var(--muted)] tabular-nums">
+                      <td className="whitespace-nowrap px-1.5 py-1.5 text-[var(--muted)] tabular-nums">
                         {hourFormat.format(new Date(event.date))}
                       </td>
-                      <td className="px-2 py-2 text-left!">
-                        <span className="rounded-sm bg-[var(--blue-soft)] px-1.5 py-0.5 font-semibold text-[var(--primary)]">
-                          {event.currency}
-                        </span>
+                      <td className="px-1.5 py-1.5 text-left!">
+                        <CurrencyFlag currency={event.currency} />
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-left!">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span
-                            aria-hidden="true"
-                            className={`h-2 w-2 rounded-[2px] ${meta.dot}`}
-                          />
-                          <span className={meta.text}>{meta.label}</span>
-                        </span>
+                      <td className="whitespace-nowrap px-1.5 py-1.5 text-left!">
+                        <ImpactBars impact={event.impact} />
                       </td>
-                      <td className="px-2 py-2 text-left! text-[var(--ink)]">
+                      <td className="px-1.5 py-1.5 text-left! text-[var(--ink)]">
                         {event.title}
                       </td>
                       <td
-                        className={`whitespace-nowrap px-2 py-2 text-right tabular-nums ${
+                        className={`whitespace-nowrap px-1.5 py-1.5 text-right tabular-nums ${
                           event.actual
                             ? "font-semibold text-[var(--ink)]"
                             : "text-[var(--muted)]"
@@ -380,10 +460,10 @@ export default function EconomicCalendar() {
                       >
                         {value(event.actual)}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-[var(--muted)]">
+                      <td className="whitespace-nowrap px-1.5 py-1.5 text-right tabular-nums text-[var(--muted)]">
                         {value(event.forecast)}
                       </td>
-                      <td className="whitespace-nowrap py-2 pl-2 pr-4 text-right tabular-nums text-[var(--muted)]">
+                      <td className="whitespace-nowrap py-1.5 pl-1.5 pr-3.5 text-right tabular-nums text-[var(--muted)]">
                         {value(event.previous)}
                       </td>
                     </tr>
@@ -396,7 +476,7 @@ export default function EconomicCalendar() {
         </>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[var(--line)] px-4 py-2.5 text-xs text-[var(--muted)]">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[var(--line)] px-3.5 py-2 text-[11px] text-[var(--muted)]">
         <span>
           Fuente:{" "}
           <a
