@@ -66,3 +66,24 @@ export type ComparisonUnavailable = {
   status: "unavailable"
   checkedAt: string
 }
+
+export type WatchlistQuote = {
+  id: string
+  price: number
+  previousClose: number
+  change: number
+  changePercent: number
+  marketTime: string
+}
+
+export type WatchlistQuotesResponse =
+  | {
+      status: "available"
+      source: string
+      checkedAt: string
+      items: WatchlistQuote[]
+    }
+  | {
+      status: "unavailable"
+      checkedAt: string
+    }

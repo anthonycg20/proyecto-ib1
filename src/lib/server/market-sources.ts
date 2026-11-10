@@ -4,6 +4,7 @@ import type {
   IndicatorFormat,
   IndicatorsSection,
   MarketIndicator,
+  WatchlistQuote,
 } from "@/lib/market-data"
 
 // Server-only readers for Finviz pages (the same pages finvizfinance scrapes)
@@ -222,6 +223,56 @@ export async function loadIndicators(): Promise<Extract<IndicatorsSection, {
       .map((item) => item.marketTime)
       .sort()
       .at(-1)!,
+    items,
+  }
+}
+
+// Live quotes for the Financiamiento terminal watchlist. Forex/metals pairs are
+// spot proxies on Yahoo Finance; NAS100 maps to the Nasdaq 100 index.
+const watchlistConfig = [
+  { id: "XAUUSD", symbol: "GC=F" },
+  { id: "AUDUSD", symbol: "AUDUSD=X" },
+  { id: "NAS100", symbol: "^NDX" },
+  { id: "EURUSD", symbol: "EURUSD=X" },
+  { id: "GBPUSD", symbol: "GBPUSD=X" },
+]
+
+async function loadWatchlistQuote(
+  config: typeof watchlistConfig[number],
+): Promise<WatchlistQuote> {
+  const { meta } = await yahooChart(config.symbol, "1d", "1d")
+  const price = finite(meta.regularMarketPrice)
+  const previousClose =
+    finite(meta.chartPreviousClose) ?? finite(meta.previousClose)
+  const marketTime = finite(meta.regularMarketTime)
+  if (price === null || !previousClose || marketTime === null)
+    throw new Error(`Incomplete quote for ${config.symbol}`)
+  const digits = price < 10 ? 5 : 2
+  return {
+    id: config.id,
+    price: round(price, digits),
+    previousClose: round(previousClose, digits),
+    change: round(price - previousClose, digits),
+    changePercent: round(((price - previousClose) / previousClose) * 100, 2),
+    marketTime: new Date(marketTime * 1000).toISOString(),
+  }
+}
+
+export async function loadWatchlistQuotes(): Promise<{
+  source: string
+  asOf: string
+  items: WatchlistQuote[]
+}> {
+  const results = await Promise.allSettled(
+    watchlistConfig.map(loadWatchlistQuote),
+  )
+  const items = results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  )
+  if (!items.length) throw new Error("No Yahoo Finance quotes")
+  return {
+    source: "Yahoo Finance",
+    asOf: items.map((item) => item.marketTime).sort().at(-1)!,
     items,
   }
 }

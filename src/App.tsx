@@ -24,6 +24,7 @@ import ib1Logo from "./assets/ib1-logo.jpg";
 import GPRDashboard from "./components/GPRDashboard";
 import SentimentDashboard from "./components/SentimentDashboard";
 import MarketDashboard from "./components/MarketDashboard";
+import TradingTerminal from "./components/TradingTerminal";
 
 type Section =
   | "dashboard"
@@ -1829,7 +1830,17 @@ export default function App() {
     if (active === "dashboard") return <MarketDashboard navigate={navigate} />;
     if (active === "datos") return <GPRDashboard />;
     if (active === "diagnostico") return <SentimentDashboard />;
-    if (active === "financiamiento") return <Financing />;
+    if (active === "financiamiento")
+      return (
+        <>
+          <PageHeader
+            description="Cotizaciones, velas e indicadores en vivo con widgets de TradingView."
+            eyebrow="Módulo 2"
+            title="Terminal de mercado"
+          />
+          <TradingTerminal />
+        </>
+      );
     if (active === "proyectos") return <Projects />;
     if (active === "escenarios") return <Scenarios data={data} />;
     if (active === "graficos") return <CustomCharts data={data} />;
