@@ -15,8 +15,6 @@ declare global {
 }
 
 const TV_SCRIPT = "https://s3.tradingview.com/tv.js"
-const TICKER_SCRIPT =
-  "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js"
 
 const scriptCache = new Map<string, Promise<void>>()
 
@@ -34,23 +32,6 @@ function loadScript(src: string) {
   })
   scriptCache.set(src, promise)
   return promise
-}
-
-const tickerConfig = {
-  symbols: [
-    { proName: "OANDA:XAUUSD", title: "XAUUSD" },
-    { proName: "FX_IDC:EURUSD", title: "EURUSD" },
-    { proName: "FX_IDC:GBPUSD", title: "GBPUSD" },
-    { proName: "FOREXCOM:SPX500USD", title: "S&P 500" },
-    { proName: "FOREXCOM:NSXUSD", title: "NAS100" },
-    { proName: "NASDAQ:AAPL", title: "AAPL" },
-    { proName: "NASDAQ:TSLA", title: "TSLA" },
-  ],
-  showSymbolLogo: true,
-  colorTheme: "dark",
-  isTransparent: true,
-  displayMode: "adaptive",
-  locale: "es",
 }
 
 const instruments = [
@@ -94,7 +75,6 @@ const chartStudies = [
 ]
 
 export default function TradingTerminal() {
-  const tickerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<HTMLDivElement | null>(null)
   const rawId = useId()
   const containerId = `tv-chart-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`
@@ -107,7 +87,12 @@ export default function TradingTerminal() {
   useEffect(() => {
     let cancelled = false
     let controller: AbortController | null = null
+    let retry: number | null = null
     const load = async () => {
+      if (retry !== null) {
+        window.clearTimeout(retry)
+        retry = null
+      }
       controller?.abort()
       const current = new AbortController()
       controller = current
@@ -123,7 +108,9 @@ export default function TradingTerminal() {
         )
         setQuotesError(false)
       } catch {
-        if (!cancelled && !current.signal.aborted) setQuotesError(true)
+        if (cancelled || current.signal.aborted) return
+        setQuotesError(true)
+        retry = window.setTimeout(() => void load(), 15_000)
       }
     }
     void load()
@@ -133,25 +120,8 @@ export default function TradingTerminal() {
     return () => {
       cancelled = true
       window.clearInterval(interval)
+      if (retry !== null) window.clearTimeout(retry)
       controller?.abort()
-    }
-  }, [])
-
-  useEffect(() => {
-    const container = tickerRef.current
-    if (!container) return
-    container.innerHTML = ""
-    const widget = document.createElement("div")
-    widget.className = "tradingview-widget-container__widget"
-    widget.style.height = "100%"
-    const script = document.createElement("script")
-    script.src = TICKER_SCRIPT
-    script.type = "text/javascript"
-    script.async = true
-    script.innerHTML = JSON.stringify(tickerConfig)
-    container.append(widget, script)
-    return () => {
-      container.innerHTML = ""
     }
   }, [])
 
@@ -199,17 +169,10 @@ export default function TradingTerminal() {
       className="overflow-hidden rounded-xl border border-[#2a2e39] bg-[#131722] text-[13px] text-[#d1d4dc] shadow-[0_18px_40px_rgba(6,26,64,0.18)]"
       aria-label="Terminal de mercado TradingView"
     >
-      <div className="min-h-[58px] overflow-hidden border-b border-[#2a2e39] bg-[#1e222d]">
-        <div
-          ref={tickerRef}
-          className="tradingview-widget-container h-full w-full"
-        />
-      </div>
-
       <div className="flex min-h-0 flex-col lg:flex-row">
-        <aside className="shrink-0 border-b border-[#2a2e39] bg-[#1e222d] lg:w-[280px] lg:border-b-0 lg:border-r">
-          <div className="flex items-center justify-between gap-2 border-b border-[#2a2e39] px-3 py-3 font-semibold text-white">
-            <span>Watchlist / Instrumentos</span>
+        <aside className="shrink-0 border-b border-[#2a2e39] bg-[#1e222d] lg:w-[210px] lg:border-b-0 lg:border-r">
+          <div className="flex items-center justify-between gap-2 border-b border-[#2a2e39] px-2.5 py-2.5 text-[12px] font-semibold text-white">
+            <span>Instrumentos</span>
             <span
               className={`flex items-center gap-1.5 text-[10px] font-normal ${
                 quotesError ? "text-[#f23645]" : "text-[#848e9c]"
@@ -239,7 +202,7 @@ export default function TradingTerminal() {
                   type="button"
                   aria-pressed={active}
                   onClick={() => setSymbol(item.tvSymbol)}
-                  className={`flex min-w-[170px] items-start justify-between gap-3 border-b border-[#262b3e] px-3 py-2.5 text-left transition-colors lg:min-w-0 lg:w-full ${
+                  className={`flex min-w-[150px] items-start justify-between gap-2 border-b border-[#262b3e] px-2.5 py-2 text-left transition-colors lg:min-w-0 lg:w-full ${
                     active
                       ? "bg-[#2a2e39] shadow-[inset_2px_0_0_#2962ff]"
                       : "hover:bg-[#2a2e39]"
@@ -249,16 +212,16 @@ export default function TradingTerminal() {
                     <span className="block font-semibold text-white">
                       {item.symbol}
                     </span>
-                    <span className="block text-[11px] text-[#848e9c]">
+                    <span className="block text-[10px] text-[#848e9c]">
                       {item.name}
                     </span>
                   </span>
-                  <span className="shrink-0 text-right tabular-nums">
+                  <span className="shrink-0 text-right text-[12px] tabular-nums">
                     <span className="block">
                       {quote ? formatPrice(quote.price) : "—"}
                     </span>
                     <span
-                      className={`block text-[11px] ${
+                      className={`block text-[10px] ${
                         quote
                           ? positive
                             ? "text-[#089981]"
@@ -275,7 +238,7 @@ export default function TradingTerminal() {
           </div>
         </aside>
 
-        <div className="relative h-[430px] w-full min-w-0 lg:h-[560px] lg:flex-1">
+        <div className="relative h-[460px] w-full min-w-0 lg:h-[620px] lg:flex-1">
           <div
             id={containerId}
             ref={chartRef}
@@ -303,7 +266,7 @@ export default function TradingTerminal() {
       </div>
 
       <p className="m-0 border-t border-[#2a2e39] bg-[#1e222d] px-3 py-2 text-[10px] leading-relaxed text-[#848e9c]">
-        Gráfico y cinta: TradingView. Precios de la watchlist: Yahoo Finance,
+        Gráfico: TradingView. Precios de la watchlist: Yahoo Finance,
         actualizados cada 60 segundos (XAUUSD se aproxima con futuros GC=F). No
         constituye asesoramiento de inversión.
       </p>
