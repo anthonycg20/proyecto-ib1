@@ -154,6 +154,98 @@ summary:focus-visible {
     linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
 }
 
+.sidebar-collapse {
+  position: fixed;
+  z-index: 35;
+  top: 30px;
+  left: 254px;
+  display: none;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  color: #dce9f8;
+  background: var(--navy-deep);
+  box-shadow: 0 4px 12px rgba(4, 15, 34, 0.25);
+  cursor: pointer;
+  transition: left 220ms ease, color 160ms ease, background 160ms ease;
+}
+
+.sidebar-collapse:hover,
+.sidebar-collapse:focus-visible {
+  color: #fff;
+  background: var(--primary);
+}
+
+.sidebar-collapse .icon {
+  transform: rotate(180deg);
+  transition: transform 220ms ease;
+}
+
+@media (min-width: 861px) {
+  .sidebar-collapse {
+    display: inline-flex;
+  }
+
+  .sidebar {
+    transition: width 220ms ease;
+  }
+
+  main {
+    transition: margin-left 220ms ease;
+  }
+
+  .app-shell.sidebar-collapsed main {
+    margin-left: 76px;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-collapse {
+    left: 62px;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar-collapse .icon {
+    transform: none;
+  }
+
+  .sidebar.collapsed {
+    width: 76px;
+  }
+
+  .sidebar.collapsed .sidebar-top {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sidebar.collapsed .sidebar-brand-name,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed nav .button span,
+  .sidebar.collapsed .sidebar-help {
+    display: none;
+  }
+
+  .sidebar.collapsed nav {
+    gap: 6px;
+    padding: 18px 10px;
+  }
+
+  .sidebar.collapsed nav .button {
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  main,
+  .sidebar-collapse,
+  .sidebar-collapse .icon {
+    transition: none;
+  }
+}
+
 .sidebar-top {
   display: flex;
   align-items: center;

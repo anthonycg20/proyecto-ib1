@@ -1728,6 +1728,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
 export default function App() {
   const [active, setActive] = useState<Section>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileViewport, setMobileViewport] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1748,6 +1749,29 @@ export default function App() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(
+        window.localStorage.getItem("ymc-sidebar-collapsed") === "1",
+      );
+    } catch {
+      // Storage can be unavailable in private contexts; start expanded.
+    }
+  }, []);
+  const toggleSidebar = () => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(
+          "ymc-sidebar-collapsed",
+          next ? "1" : "0",
+        );
+      } catch {
+        // Ignore storage failures; the toggle still works for this session.
+      }
+      return next;
+    });
+  };
   useEffect(() => {
     if (!gprMobile || !menuOpen || !sidebarRef.current) return;
     const sidebar = sidebarRef.current;
@@ -1851,16 +1875,27 @@ export default function App() {
   }, [active, company, data, documents, isDemo, period, saved]);
 
   return (
-    <div className={`app-shell${active === "datos" ? " gpr-mobile-shell" : ""}`}>
-      <aside id="app-navigation" ref={sidebarRef} className={`sidebar ${menuOpen ? "open" : ""}`} inert={gprMobile && !menuOpen} role={gprMobile && menuOpen ? "dialog" : undefined} aria-modal={gprMobile && menuOpen ? true : undefined} aria-label={gprMobile && menuOpen ? "Navegación principal" : undefined}>
+    <div className={`app-shell${active === "datos" ? " gpr-mobile-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+      <aside id="app-navigation" ref={sidebarRef} className={`sidebar ${menuOpen ? "open" : ""}${sidebarCollapsed ? " collapsed" : ""}`} inert={gprMobile && !menuOpen} role={gprMobile && menuOpen ? "dialog" : undefined} aria-modal={gprMobile && menuOpen ? true : undefined} aria-label={gprMobile && menuOpen ? "Navegación principal" : undefined}>
         <div className="sidebar-top"><div className="logo sidebar-brand"><Image alt="" className="sidebar-brand-mark" src={ib1Logo} width={48} height={48} loading="eager" unoptimized /><span className="sidebar-brand-name"><small>Investment Business One</small></span></div></div>
         <nav aria-label="Navegación principal">
           <span className="nav-label">ANALISIS DE MERCADO</span>
-          {navigation.slice(0, 8).filter((item) => !["escenarios", "graficos", "informes"].includes(item.id)).map((item) => <Button className={active === item.id ? "active" : ""} key={item.id} variant="ghost" onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></Button>)}
+          {navigation.slice(0, 8).filter((item) => !["escenarios", "graficos", "informes"].includes(item.id)).map((item) => <Button aria-label={item.label} title={sidebarCollapsed ? item.label : undefined} className={active === item.id ? "active" : ""} key={item.id} variant="ghost" onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></Button>)}
           <span className="nav-label secondary">RECURSOS</span>
-          {navigation.slice(8).map((item) => <Button className={active === item.id ? "active" : ""} key={item.id} variant="ghost" onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></Button>)}
+          {navigation.slice(8).map((item) => <Button aria-label={item.label} title={sidebarCollapsed ? item.label : undefined} className={active === item.id ? "active" : ""} key={item.id} variant="ghost" onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></Button>)}
         </nav>
       </aside>
+      <button
+        type="button"
+        className="sidebar-collapse"
+        aria-label={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+        aria-expanded={!sidebarCollapsed}
+        aria-controls="app-navigation"
+        title={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+        onClick={toggleSidebar}
+      >
+        <Icon name="arrow" size={16} />
+      </button>
       {menuOpen && <div className="overlay" onClick={() => setMenuOpen(false)} />}
       <main inert={gprMobile && menuOpen}>
         <div className="mobile-bar">
