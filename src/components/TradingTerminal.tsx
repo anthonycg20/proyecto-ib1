@@ -238,7 +238,7 @@ export default function TradingTerminal() {
           </div>
         </aside>
 
-        <div className="relative h-[460px] w-full min-w-0 lg:h-[620px] lg:flex-1">
+        <div className="relative h-[460px] w-full min-w-0 lg:h-[calc(100svh-215px)] lg:min-h-[520px] lg:max-h-[1020px] lg:flex-1">
           <div
             id={containerId}
             ref={chartRef}

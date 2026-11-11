@@ -1934,7 +1934,7 @@ export default function App() {
             </div>
           </div>
         ))}
-        <div className={`content${topbarTitle ? " content-compact" : ""}${active === "dashboard" ? " max-[860px]:px-4! max-[860px]:py-5! sm:max-[860px]:px-6!" : ""}`} ref={contentRef} tabIndex={-1}>
+        <div className={`content${topbarTitle ? " content-compact" : ""}${active === "financiamiento" ? " content-finance" : ""}${active === "dashboard" ? " max-[860px]:px-4! max-[860px]:py-5! sm:max-[860px]:px-6!" : ""}`} ref={contentRef} tabIndex={-1}>
           {active === "datos" && <div className="gpr-mobile-search"><GlobalSearch navigate={navigate} /></div>}
           {view}
         </div>

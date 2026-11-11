@@ -904,6 +904,18 @@ main {
   padding: 32px 48px 64px;
 }
 
+.content.content-finance {
+  width: 100%;
+  max-width: none;
+  padding: 18px 22px 28px;
+}
+
+@media (max-width: 860px) {
+  .content.content-finance {
+    padding: 12px 12px 24px;
+  }
+}
+
 .mobile-bar,
 .mobile-close {
   display: none;
