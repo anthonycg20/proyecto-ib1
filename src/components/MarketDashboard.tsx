@@ -210,7 +210,7 @@ function TickerIcon({ id, label }: { id: string; label: string }) {
     return (
       <span
         aria-hidden="true"
-        className="block h-5 w-5 shrink-0 overflow-hidden rounded-[4px] ring-1 ring-white/10"
+        className="block h-5 w-5 shrink-0 overflow-hidden rounded-full ring-1 ring-white/10"
       >
         <img src={src} alt="" className="h-full w-full object-cover" />
       </span>
