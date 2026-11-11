@@ -1915,7 +1915,7 @@ export default function App() {
             <><Button aria-label="Abrir menú" variant="ghost" onClick={() => setMenuOpen(true)}><Icon name="menu" /></Button><Logo compact /><div className="mobile-user-actions"><NotificationBell /><span className="avatar">JC</span></div></>
           )}
         </div>
-        {topbarTitle ? (
+        {active !== "financiamiento" && (topbarTitle ? (
           <div className="desktop-topbar topbar-overview">
             <Heading level={1} className="topbar-title">{topbarTitle}</Heading>
             <GlobalSearch navigate={navigate} placeholder="Buscar" />
@@ -1933,7 +1933,7 @@ export default function App() {
               <div><strong>Juan Cortez</strong></div>
             </div>
           </div>
-        )}
+        ))}
         <div className={`content${topbarTitle ? " content-compact" : ""}${active === "dashboard" ? " max-[860px]:px-4! max-[860px]:py-5! sm:max-[860px]:px-6!" : ""}`} ref={contentRef} tabIndex={-1}>
           {active === "datos" && <div className="gpr-mobile-search"><GlobalSearch navigate={navigate} /></div>}
           {view}

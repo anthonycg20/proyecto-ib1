@@ -219,6 +219,13 @@ summary:focus-visible {
     padding: 0;
   }
 
+  .sidebar.collapsed .logo {
+    width: 48px;
+    height: 48px;
+    justify-content: center;
+    margin: 0 auto;
+  }
+
   .sidebar.collapsed .sidebar-brand-name,
   .sidebar.collapsed .nav-label,
   .sidebar.collapsed nav .button span,
