@@ -168,18 +168,62 @@ function useMarketOverview() {
   return { data, loading, error }
 }
 
-const tickerBadges: Record<string, { text: string; bg: string }> = {
-  spx: { text: "500", bg: "#1d63d8" },
-  nasdaq: { text: "100", bg: "#0b8f7d" },
-  dow: { text: "DJ", bg: "#2f4fbf" },
-  vix: { text: "VIX", bg: "#6d3fd4" },
-  us10y: { text: "10A", bg: "#475569" },
-  dxy: { text: "$", bg: "#0b7285" },
-  usdpen: { text: "S/", bg: "#c92a2a" },
-  wti: { text: "WTI", bg: "#374151" },
-  gold: { text: "Au", bg: "#b7791f" },
-  copper: { text: "Cu", bg: "#a0522d" },
-  btc: { text: "₿", bg: "#f7931a" },
+// TradingView's own symbol logos, stored in /public/ticker so they load with
+// the app and stay crisp at 20 px. Forex pairs are drawn as two overlapping
+// circular flags (base behind, top-right; quote in front, bottom-left).
+const tickerLogos: Record<string, string> = {
+  spx: "/ticker/spx.svg",
+  nasdaq: "/ticker/nasdaq.svg",
+  dow: "/ticker/dow.svg",
+  vix: "/ticker/vix.svg",
+  us10y: "/ticker/flag-us.svg",
+  dxy: "/ticker/dxy.svg",
+  wti: "/ticker/wti.svg",
+  gold: "/ticker/gold.svg",
+  copper: "/ticker/copper.svg",
+  btc: "/ticker/btc.svg",
+}
+
+function TickerIcon({ id, label }: { id: string; label: string }) {
+  if (id === "usdpen") {
+    return (
+      <span aria-hidden="true" className="relative block h-5 w-5 shrink-0">
+        <span className="absolute right-0 top-0 block h-3.5 w-3.5 overflow-hidden rounded-full ring-[1.5px] ring-[#0b1526]">
+          <img
+            src="/ticker/flag-us.svg"
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </span>
+        <span className="absolute bottom-0 left-0 block h-3.5 w-3.5 overflow-hidden rounded-full ring-[1.5px] ring-[#0b1526]">
+          <img
+            src="/ticker/flag-pe.svg"
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </span>
+      </span>
+    )
+  }
+  const src = tickerLogos[id]
+  if (src) {
+    return (
+      <span
+        aria-hidden="true"
+        className="block h-5 w-5 shrink-0 overflow-hidden rounded-[4px] ring-1 ring-white/10"
+      >
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      </span>
+    )
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#334155] text-[8px] font-bold uppercase leading-none text-white"
+    >
+      {label.slice(0, 3)}
+    </span>
+  )
 }
 
 function MarketTicker({
@@ -192,23 +236,13 @@ function MarketTicker({
   const items = section?.status === "available" ? section.items : []
   const indicatorCards = items.map((item) => {
     const risk = item.risingIsRisk ? item.change > 0 : item.change < 0
-    const badge = tickerBadges[item.id] ?? {
-      text: item.label.slice(0, 3),
-      bg: "#334155",
-    }
     return (
       <article
         key={item.id}
         title={`${item.symbol} · último dato ${newsDateFormat.format(new Date(item.marketTime))}`}
         className="flex shrink-0 items-center gap-2 border-r border-white/10 px-3 py-2"
       >
-        <span
-          aria-hidden="true"
-          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[8px] font-bold uppercase leading-none text-white"
-          style={{ backgroundColor: badge.bg }}
-        >
-          {badge.text}
-        </span>
+        <TickerIcon id={item.id} label={item.label} />
         <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-[#9fb0c9]">
           {item.label}
         </span>
