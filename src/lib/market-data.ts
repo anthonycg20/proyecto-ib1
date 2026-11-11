@@ -67,6 +67,30 @@ export type ComparisonUnavailable = {
   checkedAt: string
 }
 
+export type CandleInterval = "1m" | "5m" | "15m" | "30m" | "1h" | "1d"
+
+export type Candle = {
+  time: number
+  open: number
+  high: number
+  low: number
+  close: number
+}
+
+export type CandlesResponse =
+  | {
+      status: "available"
+      source: string
+      symbol: string
+      interval: CandleInterval
+      asOf: string
+      candles: Candle[]
+    }
+  | {
+      status: "unavailable"
+      checkedAt: string
+    }
+
 export type WatchlistQuote = {
   id: string
   price: number

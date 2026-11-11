@@ -1,4 +1,6 @@
 import type {
+  Candle,
+  CandleInterval,
   HeatmapAsset,
   HeatmapSection,
   IndicatorFormat,
@@ -103,6 +105,9 @@ export function cached<T>(
 type YahooChart = {
   meta: JsonRecord
   timestamps: number[]
+  opens: (number | null)[]
+  highs: (number | null)[]
+  lows: (number | null)[]
   closes: (number | null)[]
 }
 
@@ -127,10 +132,16 @@ async function yahooChart(
   const timestamps = Array.isArray(result.timestamp)
     ? result.timestamp.map((value) => finite(value) ?? 0)
     : []
-  const closes = Array.isArray(quote.close)
-    ? quote.close.map((value) => finite(value))
-    : []
-  return { meta, timestamps, closes }
+  const column = (value: unknown) =>
+    Array.isArray(value) ? value.map((item) => finite(item)) : []
+  return {
+    meta,
+    timestamps,
+    opens: column(quote.open),
+    highs: column(quote.high),
+    lows: column(quote.low),
+    closes: column(quote.close),
+  }
 }
 
 const indicatorConfig: {
@@ -274,6 +285,61 @@ export async function loadWatchlistQuotes(): Promise<{
     source: "Yahoo Finance",
     asOf: items.map((item) => item.marketTime).sort().at(-1)!,
     items,
+  }
+}
+
+// OHLC candles for the Squeeze Momentum pane. Yahoo caps intraday history, so
+// each timeframe asks for the smallest range that still covers the indicator.
+const candleConfig: Record<
+  CandleInterval,
+  { interval: string; range: string }
+> = {
+  "1m": { interval: "1m", range: "1d" },
+  "5m": { interval: "5m", range: "5d" },
+  "15m": { interval: "15m", range: "5d" },
+  "30m": { interval: "30m", range: "1mo" },
+  "1h": { interval: "60m", range: "3mo" },
+  "1d": { interval: "1d", range: "2y" },
+}
+
+export async function loadCandles(
+  id: string,
+  interval: CandleInterval,
+): Promise<{
+  source: string
+  symbol: string
+  interval: CandleInterval
+  asOf: string
+  candles: Candle[]
+}> {
+  const config = watchlistConfig.find(
+    (item) => item.id.toLowerCase() === id.toLowerCase(),
+  )
+  if (!config) throw new Error(`Unknown symbol ${id}`)
+  const settings = candleConfig[interval]
+  if (!settings) throw new Error(`Unknown interval ${interval}`)
+  const { timestamps, opens, highs, lows, closes } = await yahooChart(
+    config.symbol,
+    settings.range,
+    settings.interval,
+  )
+  const candles: Candle[] = []
+  for (let index = 0; index < timestamps.length; index++) {
+    const open = opens[index]
+    const high = highs[index]
+    const low = lows[index]
+    const close = closes[index]
+    if (open === null || high === null || low === null || close === null)
+      continue
+    candles.push({ time: timestamps[index], open, high, low, close })
+  }
+  if (candles.length < 2) throw new Error(`No candles for ${config.symbol}`)
+  return {
+    source: "Yahoo Finance",
+    symbol: config.symbol,
+    interval,
+    asOf: new Date(candles.at(-1)!.time * 1000).toISOString(),
+    candles,
   }
 }
 

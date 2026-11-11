@@ -1,10 +1,15 @@
 "use client"
 
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import type {
+  Candle,
+  CandleInterval,
+  CandlesResponse,
   WatchlistQuote,
   WatchlistQuotesResponse,
 } from "@/lib/market-data"
+import { computeSqueeze } from "@/lib/squeeze"
+import SqueezeMomentum from "./SqueezeMomentum"
 
 type TradingViewCtor = new (options: Record<string, unknown>) => unknown
 
@@ -40,6 +45,17 @@ const instruments = [
   { symbol: "NAS100", tvSymbol: "FOREXCOM:NSXUSD", name: "Nasdaq 100" },
   { symbol: "EURUSD", tvSymbol: "FX_IDC:EURUSD", name: "Euro / Dólar" },
   { symbol: "GBPUSD", tvSymbol: "FX_IDC:GBPUSD", name: "Libra / Dólar" },
+]
+
+// The widget does not expose its timeframe (no chart API, no postMessage), so
+// the app owns it: this selector drives both the chart and the Squeeze pane.
+const timeframes: { id: CandleInterval; label: string; tv: string }[] = [
+  { id: "1m", label: "1m", tv: "1" },
+  { id: "5m", label: "5m", tv: "5" },
+  { id: "15m", label: "15m", tv: "15" },
+  { id: "30m", label: "30m", tv: "30" },
+  { id: "1h", label: "1h", tv: "60" },
+  { id: "1d", label: "1D", tv: "D" },
 ]
 
 const priceFormatters = new Map<number, Intl.NumberFormat>()
@@ -79,10 +95,17 @@ export default function TradingTerminal() {
   const rawId = useId()
   const containerId = `tv-chart-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`
   const [symbol, setSymbol] = useState("OANDA:XAUUSD")
+  const [timeframe, setTimeframe] = useState<CandleInterval>("1m")
   const [chartError, setChartError] = useState(false)
   const [chartReady, setChartReady] = useState(false)
   const [quotes, setQuotes] = useState<Record<string, WatchlistQuote>>({})
   const [quotesError, setQuotesError] = useState(false)
+  const [candles, setCandles] = useState<Candle[]>([])
+  const [candlesLoading, setCandlesLoading] = useState(true)
+  const [candlesError, setCandlesError] = useState(false)
+  const activeInstrument =
+    instruments.find((item) => item.tvSymbol === symbol) ?? instruments[0]
+  const squeeze = useMemo(() => computeSqueeze(candles), [candles])
 
   useEffect(() => {
     let cancelled = false
@@ -126,6 +149,51 @@ export default function TradingTerminal() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    let controller: AbortController | null = null
+    let retry: number | null = null
+    const load = async () => {
+      if (retry !== null) {
+        window.clearTimeout(retry)
+        retry = null
+      }
+      controller?.abort()
+      const current = new AbortController()
+      controller = current
+      try {
+        const response = await fetch(
+          `/api/candles?symbol=${activeInstrument.symbol}&interval=${timeframe}`,
+          { signal: current.signal },
+        )
+        const data = (await response.json()) as CandlesResponse
+        if (data.status !== "available") throw new Error("unavailable")
+        if (cancelled) return
+        setCandles(data.candles)
+        setCandlesError(false)
+      } catch {
+        if (cancelled || current.signal.aborted) return
+        setCandlesError(true)
+        retry = window.setTimeout(() => void load(), 15_000)
+      } finally {
+        if (!cancelled && !current.signal.aborted) setCandlesLoading(false)
+      }
+    }
+    setCandles([])
+    setCandlesLoading(true)
+    setCandlesError(false)
+    void load()
+    const ticker = window.setInterval(() => {
+      if (!document.hidden) void load()
+    }, 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(ticker)
+      if (retry !== null) window.clearTimeout(retry)
+      controller?.abort()
+    }
+  }, [activeInstrument.symbol, timeframe])
+
+  useEffect(() => {
     const container = chartRef.current
     if (!container) return
     let cancelled = false
@@ -138,7 +206,7 @@ export default function TradingTerminal() {
         new window.TradingView.widget({
           autosize: true,
           symbol,
-          interval: "1",
+          interval: timeframes.find((item) => item.id === timeframe)!.tv,
           timezone: "Etc/UTC",
           theme: "dark",
           style: "1",
@@ -146,7 +214,8 @@ export default function TradingTerminal() {
           toolbar_bg: "#1e222d",
           enable_publishing: false,
           hide_side_toolbar: false,
-          allow_symbol_change: true,
+          hide_top_toolbar: true,
+          allow_symbol_change: false,
           details: false,
           hotlist: false,
           calendar: false,
@@ -162,7 +231,7 @@ export default function TradingTerminal() {
       cancelled = true
       if (container) container.innerHTML = ""
     }
-  }, [symbol, containerId])
+  }, [symbol, timeframe, containerId])
 
   return (
     <section
@@ -238,37 +307,80 @@ export default function TradingTerminal() {
           </div>
         </aside>
 
-        <div className="relative h-[460px] w-full min-w-0 lg:h-[calc(100svh-215px)] lg:min-h-[520px] lg:max-h-[1020px] lg:flex-1">
-          <div
-            id={containerId}
-            ref={chartRef}
-            className="h-full w-full"
-            aria-label={`Gráfico de velas de ${symbol}`}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-[#2a2e39] bg-[#1e222d] px-2.5">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="font-semibold text-white">
+                {activeInstrument.symbol}
+              </span>
+              <span className="truncate text-[10px] text-[#848e9c]">
+                {activeInstrument.name} · {symbol}
+              </span>
+            </div>
+            <div
+              className="flex shrink-0 items-center gap-0.5"
+              role="group"
+              aria-label="Temporalidad del gráfico y del Squeeze"
+            >
+              {timeframes.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={item.id === timeframe}
+                  onClick={() => setTimeframe(item.id)}
+                  className={`rounded px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                    item.id === timeframe
+                      ? "bg-[#2a2e39] text-white shadow-[inset_0_-2px_0_#2962ff]"
+                      : "text-[#848e9c] hover:bg-[#2a2e39]/60 hover:text-white"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative h-[460px] w-full min-w-0 lg:h-[calc(100svh-215px)] lg:min-h-[520px] lg:max-h-[1020px]">
+            <div
+              id={containerId}
+              ref={chartRef}
+              className="h-full w-full"
+              aria-label={`Gráfico de velas de ${symbol}`}
+            />
+            {!chartReady && !chartError && (
+              <div
+                className="pointer-events-none absolute inset-0 grid place-items-center bg-[#131722] text-xs text-[#848e9c]"
+                role="status"
+              >
+                Cargando gráfico de TradingView…
+              </div>
+            )}
+            {chartError && (
+              <div
+                className="absolute inset-0 grid place-items-center bg-[#131722] px-6 text-center text-xs leading-relaxed text-[#848e9c]"
+                role="status"
+              >
+                No se pudo cargar el gráfico de TradingView. Revisá la conexión y
+                volvé a intentarlo.
+              </div>
+            )}
+          </div>
+
+          <SqueezeMomentum
+            points={squeeze.points}
+            state={squeeze.state}
+            loading={candlesLoading}
+            error={candlesError}
           />
-          {!chartReady && !chartError && (
-            <div
-              className="pointer-events-none absolute inset-0 grid place-items-center bg-[#131722] text-xs text-[#848e9c]"
-              role="status"
-            >
-              Cargando gráfico de TradingView…
-            </div>
-          )}
-          {chartError && (
-            <div
-              className="absolute inset-0 grid place-items-center bg-[#131722] px-6 text-center text-xs leading-relaxed text-[#848e9c]"
-              role="status"
-            >
-              No se pudo cargar el gráfico de TradingView. Revisá la conexión y
-              volvé a intentarlo.
-            </div>
-          )}
         </div>
       </div>
 
       <p className="m-0 border-t border-[#2a2e39] bg-[#1e222d] px-3 py-2 text-[10px] leading-relaxed text-[#848e9c]">
-        Gráfico: TradingView. Precios de la watchlist: Yahoo Finance,
-        actualizados cada 60 segundos (XAUUSD se aproxima con futuros GC=F). No
-        constituye asesoramiento de inversión.
+        Gráfico: TradingView. Squeeze Momentum: réplica del script de LazyBear
+        (BB 20 con 1,5σ, KC 20 con 1,5·ATR, regresión lineal de 20 velas); en la
+        línea de cero, negro = comprimido, gris = disparado, azul = sin
+        compresión. Velas y precios: Yahoo Finance, cada 60 segundos (XAUUSD se
+        aproxima con futuros GC=F). No constituye asesoramiento de inversión.
       </p>
     </section>
   )
