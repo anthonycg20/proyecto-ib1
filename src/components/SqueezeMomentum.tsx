@@ -38,11 +38,13 @@ export default function SqueezeMomentum({
   state,
   loading,
   error,
+  notice,
 }: {
   points: SqueezePoint[]
   state: "on" | "off" | "none" | null
   loading: boolean
   error: boolean
+  notice: string | null
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -145,14 +147,20 @@ export default function SqueezeMomentum({
     return () => observer.disconnect()
   }, [points])
 
-  const badge =
-    state === "on"
+  const badge = notice
+    ? "bg-white/8 text-[#9aa4b2]"
+    : state === "on"
       ? "bg-[#ffb74d]/15 text-[#ffb74d]"
       : state === "off"
         ? last && last.value >= 0
           ? "bg-[#089981]/15 text-[#26a69a]"
           : "bg-[#f23645]/15 text-[#f23645]"
         : "bg-white/8 text-[#9aa4b2]"
+  const badgeLabel = notice
+    ? "Sin datos"
+    : state
+      ? stateLabels[state]
+      : "Calculando"
 
   return (
     <div className="border-t border-[#2a2e39] bg-[#131722]">
@@ -170,7 +178,7 @@ export default function SqueezeMomentum({
             <span className="text-[9px] text-[#5d6677]">actualizando…</span>
           )}
           <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${badge}`}>
-            {state ? stateLabels[state] : "Calculando"}
+            {badgeLabel}
           </span>
           <span className="text-[11px] tabular-nums text-[#d1d4dc]">
             {formatValue(last?.value)}
@@ -182,14 +190,16 @@ export default function SqueezeMomentum({
         ref={wrapRef}
         className="relative h-[132px] w-full"
         role="img"
-        aria-label={`Squeeze Momentum: ${state ? stateLabels[state] : "sin datos"}, último valor ${formatValue(last?.value)}`}
+        aria-label={`Squeeze Momentum: ${notice ?? (state ? stateLabels[state] : "sin datos")}, último valor ${formatValue(last?.value)}`}
       >
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
         {points.length === 0 && (
           <div className="absolute inset-0 grid place-items-center px-4 text-center text-[11px] text-[#848e9c]">
-            {error
-              ? "No se pudieron cargar las velas para el Squeeze."
-              : "Calculando Squeeze Momentum…"}
+            {notice
+              ? notice
+              : error
+                ? "No se pudieron cargar las velas para el Squeeze."
+                : "Calculando Squeeze Momentum…"}
           </div>
         )}
       </div>

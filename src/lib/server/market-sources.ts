@@ -316,10 +316,25 @@ export async function loadCandles(
     (item) => item.id.toLowerCase() === id.toLowerCase(),
   )
   if (!config) throw new Error(`Unknown symbol ${id}`)
+  return loadCandlesForTicker(config.symbol, interval)
+}
+
+// Same candles but for any Yahoo ticker: the TradingView toolbar lets the user
+// search symbols outside the watchlist (e.g. USDJPY -> USDJPY=X).
+export async function loadCandlesForTicker(
+  ticker: string,
+  interval: CandleInterval,
+): Promise<{
+  source: string
+  symbol: string
+  interval: CandleInterval
+  asOf: string
+  candles: Candle[]
+}> {
   const settings = candleConfig[interval]
   if (!settings) throw new Error(`Unknown interval ${interval}`)
   const { timestamps, opens, highs, lows, closes } = await yahooChart(
-    config.symbol,
+    ticker,
     settings.range,
     settings.interval,
   )
@@ -333,10 +348,10 @@ export async function loadCandles(
       continue
     candles.push({ time: timestamps[index], open, high, low, close })
   }
-  if (candles.length < 2) throw new Error(`No candles for ${config.symbol}`)
+  if (candles.length < 2) throw new Error(`No candles for ${ticker}`)
   return {
     source: "Yahoo Finance",
-    symbol: config.symbol,
+    symbol: ticker,
     interval,
     asOf: new Date(candles.at(-1)!.time * 1000).toISOString(),
     candles,

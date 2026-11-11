@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type {
   Candle,
   CandleInterval,
@@ -11,32 +11,37 @@ import type {
 import { computeSqueeze } from "@/lib/squeeze"
 import SqueezeMomentum from "./SqueezeMomentum"
 
-type TradingViewCtor = new (options: Record<string, unknown>) => unknown
+const CHART_TAG = "tv-advanced-chart"
+const CHART_SCRIPT =
+  "https://widgets.tradingview-widget.com/w/es/tv-advanced-chart.js"
 
-declare global {
-  interface Window {
-    TradingView?: { widget: TradingViewCtor }
-  }
-}
+let chartScript: Promise<void> | null = null
 
-const TV_SCRIPT = "https://s3.tradingview.com/tv.js"
-
-const scriptCache = new Map<string, Promise<void>>()
-
-function loadScript(src: string) {
+function loadChartScript() {
   if (typeof window === "undefined") return Promise.resolve()
-  const cached = scriptCache.get(src)
-  if (cached) return cached
-  const promise = new Promise<void>((resolve, reject) => {
+  if (chartScript) return chartScript
+  chartScript = new Promise<void>((resolve, reject) => {
+    if (window.customElements.get(CHART_TAG)) {
+      resolve()
+      return
+    }
     const script = document.createElement("script")
-    script.src = src
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error(`No se pudo cargar ${src}`))
+    script.type = "module"
+    script.src = CHART_SCRIPT
+    script.onload = () => {
+      window.customElements.whenDefined(CHART_TAG).then(
+        () => resolve(),
+        (error) => reject(error),
+      )
+    }
+    script.onerror = () =>
+      reject(new Error(`No se pudo cargar ${CHART_SCRIPT}`))
     document.head.appendChild(script)
   })
-  scriptCache.set(src, promise)
-  return promise
+  chartScript.catch(() => {
+    chartScript = null
+  })
+  return chartScript
 }
 
 const instruments = [
@@ -47,16 +52,74 @@ const instruments = [
   { symbol: "GBPUSD", tvSymbol: "FX_IDC:GBPUSD", name: "Libra / Dólar" },
 ]
 
-// The widget does not expose its timeframe (no chart API, no postMessage), so
-// the app owns it: this selector drives both the chart and the Squeeze pane.
-const timeframes: { id: CandleInterval; label: string; tv: string }[] = [
-  { id: "1m", label: "1m", tv: "1" },
-  { id: "5m", label: "5m", tv: "5" },
-  { id: "15m", label: "15m", tv: "15" },
-  { id: "30m", label: "30m", tv: "30" },
-  { id: "1h", label: "1h", tv: "60" },
-  { id: "1d", label: "1D", tv: "D" },
-]
+// The web component reports what the user picks in TradingView's own toolbar:
+// "interval" changes from "1" to "60", "D", etc. This is the only reliable
+// bridge we found, so the app mirrors those attributes into its own state.
+const intervalMap: Record<string, CandleInterval> = {
+  "1": "1m",
+  "5": "5m",
+  "15": "15m",
+  "30": "30m",
+  "60": "1h",
+  "1H": "1h",
+  D: "1d",
+  "1D": "1d",
+}
+
+const intervalLabels: Record<string, string> = {
+  "1": "1m",
+  "3": "3m",
+  "5": "5m",
+  "15": "15m",
+  "30": "30m",
+  "45": "45m",
+  "60": "1h",
+  "1H": "1h",
+  "120": "2h",
+  "180": "3h",
+  "240": "4h",
+  D: "1D",
+  "1D": "1D",
+  W: "1S",
+  "1W": "1S",
+  M: "1M",
+  "1M": "1M",
+}
+
+type ChartTarget = {
+  ticker: string
+  label: string
+}
+
+const knownTargets: Record<string, ChartTarget> = {
+  "OANDA:XAUUSD": { ticker: "GC=F", label: "XAUUSD" },
+  "FX_IDC:AUDUSD": { ticker: "AUDUSD=X", label: "AUDUSD" },
+  "FOREXCOM:NSXUSD": { ticker: "^NDX", label: "NAS100" },
+  "FX_IDC:EURUSD": { ticker: "EURUSD=X", label: "EURUSD" },
+  "FX_IDC:GBPUSD": { ticker: "GBPUSD=X", label: "GBPUSD" },
+}
+
+const forexExchanges = new Set([
+  "OANDA",
+  "FX_IDC",
+  "FX",
+  "SAXO",
+  "PEPPERSTONE",
+  "EASYMARKETS",
+])
+
+// Maps a TradingView symbol to something Yahoo Finance can price. Only forex
+// pairs can be derived safely from the ticker; everything else needs a manual
+// entry in knownTargets, otherwise the Squeeze pane reports it as unavailable.
+function resolveTarget(tvSymbol: string): ChartTarget | null {
+  const direct = knownTargets[tvSymbol.toUpperCase()]
+  if (direct) return direct
+  const [exchange, code] = tvSymbol.split(":")
+  if (!exchange || !code) return null
+  if (forexExchanges.has(exchange.toUpperCase()) && /^[A-Z]{6}$/.test(code))
+    return { ticker: `${code}=X`, label: code }
+  return null
+}
 
 const priceFormatters = new Map<number, Intl.NumberFormat>()
 
@@ -91,11 +154,15 @@ const chartStudies = [
 ]
 
 export default function TradingTerminal() {
-  const chartRef = useRef<HTMLDivElement | null>(null)
-  const rawId = useId()
-  const containerId = `tv-chart-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`
+  const chartRef = useRef<HTMLElement | null>(null)
+  const chartHostRef = useRef<HTMLDivElement | null>(null)
   const [symbol, setSymbol] = useState("OANDA:XAUUSD")
-  const [timeframe, setTimeframe] = useState<CandleInterval>("1m")
+  const [rawInterval, setRawInterval] = useState("1")
+  const [timeframe, setTimeframe] = useState<CandleInterval | null>("1m")
+  const [target, setTarget] = useState<ChartTarget | null>({
+    ticker: "GC=F",
+    label: "XAUUSD",
+  })
   const [chartError, setChartError] = useState(false)
   const [chartReady, setChartReady] = useState(false)
   const [quotes, setQuotes] = useState<Record<string, WatchlistQuote>>({})
@@ -103,9 +170,15 @@ export default function TradingTerminal() {
   const [candles, setCandles] = useState<Candle[]>([])
   const [candlesLoading, setCandlesLoading] = useState(true)
   const [candlesError, setCandlesError] = useState(false)
-  const activeInstrument =
-    instruments.find((item) => item.tvSymbol === symbol) ?? instruments[0]
+  const activeInstrument = instruments.find((item) => item.tvSymbol === symbol)
   const squeeze = useMemo(() => computeSqueeze(candles), [candles])
+  const ticker = target?.ticker ?? null
+  const intervalLabel = intervalLabels[rawInterval] ?? rawInterval
+  const notice = !target
+    ? `Squeeze no disponible para ${symbol.split(":").at(-1) ?? symbol}`
+    : !timeframe
+      ? `Temporalidad ${intervalLabel} no disponible`
+      : null
 
   useEffect(() => {
     let cancelled = false
@@ -149,6 +222,12 @@ export default function TradingTerminal() {
   }, [])
 
   useEffect(() => {
+    if (!ticker || !timeframe) {
+      setCandles([])
+      setCandlesLoading(false)
+      setCandlesError(false)
+      return
+    }
     let cancelled = false
     let controller: AbortController | null = null
     let retry: number | null = null
@@ -162,7 +241,7 @@ export default function TradingTerminal() {
       controller = current
       try {
         const response = await fetch(
-          `/api/candles?symbol=${activeInstrument.symbol}&interval=${timeframe}`,
+          `/api/candles?yahoo=${encodeURIComponent(ticker)}&interval=${timeframe}`,
           { signal: current.signal },
         )
         const data = (await response.json()) as CandlesResponse
@@ -182,56 +261,83 @@ export default function TradingTerminal() {
     setCandlesLoading(true)
     setCandlesError(false)
     void load()
-    const ticker = window.setInterval(() => {
+    const poller = window.setInterval(() => {
       if (!document.hidden) void load()
     }, 60_000)
     return () => {
       cancelled = true
-      window.clearInterval(ticker)
+      window.clearInterval(poller)
       if (retry !== null) window.clearTimeout(retry)
       controller?.abort()
     }
-  }, [activeInstrument.symbol, timeframe])
+  }, [ticker, timeframe])
 
   useEffect(() => {
-    const container = chartRef.current
-    if (!container) return
+    const host = chartHostRef.current
+    if (!host) return
     let cancelled = false
+    let element: HTMLElement | null = null
+    let observer: MutationObserver | null = null
+
+    const sync = (chart: HTMLElement) => {
+      const raw = chart.getAttribute("interval") ?? "1"
+      setRawInterval(raw)
+      setTimeframe(intervalMap[raw] ?? null)
+      const nextSymbol = chart.getAttribute("symbol")
+      if (!nextSymbol) return
+      setSymbol(nextSymbol)
+      setTarget(resolveTarget(nextSymbol))
+    }
+
     setChartError(false)
     setChartReady(false)
-    container.innerHTML = ""
-    loadScript(TV_SCRIPT)
+    loadChartScript()
       .then(() => {
-        if (cancelled || !window.TradingView || !chartRef.current) return
-        new window.TradingView.widget({
-          autosize: true,
-          symbol,
-          interval: timeframes.find((item) => item.id === timeframe)!.tv,
-          timezone: "Etc/UTC",
-          theme: "dark",
-          style: "1",
-          locale: "es",
-          toolbar_bg: "#1e222d",
-          enable_publishing: false,
-          hide_side_toolbar: false,
-          hide_top_toolbar: true,
-          allow_symbol_change: false,
-          details: false,
-          hotlist: false,
-          calendar: false,
-          container_id: containerId,
-          studies: chartStudies,
+        if (cancelled || !chartHostRef.current) return
+        const chart = document.createElement(CHART_TAG)
+        chart.setAttribute("symbol", "OANDA:XAUUSD")
+        chart.setAttribute("interval", "1")
+        chart.setAttribute("theme", "dark")
+        chart.setAttribute("timezone", "Etc/UTC")
+        chart.setAttribute("allow-symbol-change", "")
+        chart.setAttribute("show-drawing-toolbar", "")
+        chart.setAttribute("studies", JSON.stringify(chartStudies))
+        chart.setAttribute("aria-label", "Gráfico de velas de TradingView")
+        chart.style.display = "block"
+        chart.style.width = "100%"
+        chart.style.height = "100%"
+        chart.addEventListener("tv-widget-ready", () => {
+          if (!cancelled) setChartReady(true)
         })
-        setChartReady(true)
+        chart.addEventListener("tv-widget-error", () => {
+          if (!cancelled) setChartError(true)
+        })
+        observer = new MutationObserver(() => sync(chart))
+        observer.observe(chart, {
+          attributes: true,
+          attributeFilter: ["interval", "symbol"],
+        })
+        host.appendChild(chart)
+        element = chart
+        chartRef.current = chart
       })
       .catch(() => {
         if (!cancelled) setChartError(true)
       })
+
     return () => {
       cancelled = true
-      if (container) container.innerHTML = ""
+      observer?.disconnect()
+      chartRef.current = null
+      element?.remove()
     }
-  }, [symbol, timeframe, containerId])
+  }, [])
+
+  const selectInstrument = (tvSymbol: string) => {
+    const chart = chartRef.current
+    if (!chart || chart.getAttribute("symbol") === tvSymbol) return
+    chart.setAttribute("symbol", tvSymbol)
+  }
 
   return (
     <section
@@ -270,7 +376,7 @@ export default function TradingTerminal() {
                   key={item.symbol}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setSymbol(item.tvSymbol)}
+                  onClick={() => selectInstrument(item.tvSymbol)}
                   className={`flex min-w-[150px] items-start justify-between gap-2 border-b border-[#262b3e] px-2.5 py-2 text-left transition-colors lg:min-w-0 lg:w-full ${
                     active
                       ? "bg-[#2a2e39] shadow-[inset_2px_0_0_#2962ff]"
@@ -308,45 +414,8 @@ export default function TradingTerminal() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-[#2a2e39] bg-[#1e222d] px-2.5">
-            <div className="flex min-w-0 items-baseline gap-2">
-              <span className="font-semibold text-white">
-                {activeInstrument.symbol}
-              </span>
-              <span className="truncate text-[10px] text-[#848e9c]">
-                {activeInstrument.name} · {symbol}
-              </span>
-            </div>
-            <div
-              className="flex shrink-0 items-center gap-0.5"
-              role="group"
-              aria-label="Temporalidad del gráfico y del Squeeze"
-            >
-              {timeframes.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={item.id === timeframe}
-                  onClick={() => setTimeframe(item.id)}
-                  className={`rounded px-1.5 py-1 text-[11px] font-medium transition-colors ${
-                    item.id === timeframe
-                      ? "bg-[#2a2e39] text-white shadow-[inset_0_-2px_0_#2962ff]"
-                      : "text-[#848e9c] hover:bg-[#2a2e39]/60 hover:text-white"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="relative h-[460px] w-full min-w-0 lg:h-[calc(100svh-215px)] lg:min-h-[520px] lg:max-h-[1020px]">
-            <div
-              id={containerId}
-              ref={chartRef}
-              className="h-full w-full"
-              aria-label={`Gráfico de velas de ${symbol}`}
-            />
+            <div ref={chartHostRef} className="h-full w-full" />
             {!chartReady && !chartError && (
               <div
                 className="pointer-events-none absolute inset-0 grid place-items-center bg-[#131722] text-xs text-[#848e9c]"
@@ -371,13 +440,15 @@ export default function TradingTerminal() {
             state={squeeze.state}
             loading={candlesLoading}
             error={candlesError}
+            notice={notice}
           />
         </div>
       </div>
 
       <p className="m-0 border-t border-[#2a2e39] bg-[#1e222d] px-3 py-2 text-[10px] leading-relaxed text-[#848e9c]">
-        Gráfico: TradingView. Squeeze Momentum: réplica del script de LazyBear
-        (BB 20 con 1,5σ, KC 20 con 1,5·ATR, regresión lineal de 20 velas); en la
+        Gráfico: TradingView; la temporalidad y el símbolo que elegís en su barra
+        se aplican al panel. Squeeze Momentum: réplica del script de LazyBear (BB
+        20 con 1,5σ, KC 20 con 1,5·ATR, regresión lineal de 20 velas); en la
         línea de cero, negro = comprimido, gris = disparado, azul = sin
         compresión. Velas y precios: Yahoo Finance, cada 60 segundos (XAUUSD se
         aproxima con futuros GC=F). No constituye asesoramiento de inversión.

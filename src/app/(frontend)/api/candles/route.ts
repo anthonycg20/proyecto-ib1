@@ -2,7 +2,11 @@ import type {
   CandleInterval,
   CandlesResponse,
 } from "@/lib/market-data"
-import { cached, loadCandles } from "@/lib/server/market-sources"
+import {
+  cached,
+  loadCandles,
+  loadCandlesForTicker,
+} from "@/lib/server/market-sources"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -12,12 +16,16 @@ const REFRESH_MS = 60_000
 
 const intervals: CandleInterval[] = ["1m", "5m", "15m", "30m", "1h", "1d"]
 
+// Yahoo tickers accepted from the client: EURUSD=X, GC=F, ^NDX, BTC-USD…
+const tickerPattern = /^[A-Z0-9.^=_-]{1,20}$/
+
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
+  const ticker = (params.get("yahoo") ?? "").trim().toUpperCase()
   const symbol = (params.get("symbol") ?? "XAUUSD").toUpperCase()
   const interval = (params.get("interval") ?? "1m") as CandleInterval
 
-  if (!intervals.includes(interval)) {
+  if (!intervals.includes(interval) || (ticker && !tickerPattern.test(ticker))) {
     return Response.json(
       { status: "unavailable", checkedAt: new Date().toISOString() } satisfies CandlesResponse,
       { status: 400, headers: { "Cache-Control": "no-store" } },
@@ -25,11 +33,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await cached(
-      `yahoo-candles:${symbol}:${interval}`,
-      REFRESH_MS,
-      () => loadCandles(symbol, interval),
-    )
+    const data = ticker
+      ? await cached(
+          `yahoo-candles:ticker:${ticker}:${interval}`,
+          REFRESH_MS,
+          () => loadCandlesForTicker(ticker, interval),
+        )
+      : await cached(
+          `yahoo-candles:${symbol}:${interval}`,
+          REFRESH_MS,
+          () => loadCandles(symbol, interval),
+        )
     return Response.json(
       { status: "available", ...data } satisfies CandlesResponse,
       {
