@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import { XMLParser } from "fast-xml-parser"
+import { articleTags, matchCountries } from "@/lib/gpr-country"
 import type { GprNewsArticle, GprNewsCategory } from "@/lib/gpr-news"
 
 // World-news feeds from newspapers used by the GPR methodology (plus El País
@@ -291,6 +292,7 @@ async function readFeed(feed: typeof feeds[number]) {
     ].join(". ")
     const classification = classifyHeadline(title, summary.slice(0, 1500))
     if (!classification) continue
+    const matches = matchCountries(title, summary.slice(0, 1500))
     const date = Date.parse(text(item.pubDate))
     articles.push({
       id: createHash("sha256").update(url).digest("hex").slice(0, 16),
@@ -299,6 +301,9 @@ async function readFeed(feed: typeof feeds[number]) {
       source: feed.name,
       publishedAt: Number.isFinite(date) ? new Date(date).toISOString() : null,
       image: articleImage(item),
+      type: classification.category === "act" ? "GPRA" : "GPRT",
+      countries: matches.countries,
+      tags: articleTags(title, summary.slice(0, 1500)),
       ...classification,
     })
   }

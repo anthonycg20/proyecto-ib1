@@ -2,6 +2,9 @@
 
 export type GprNewsCategory = "act" | "threat"
 
+// Public label used by the card and the feed badges.
+export type GprNewsType = "GPRA" | "GPRT"
+
 export type GprNewsArticle = {
   id: string
   title: string
@@ -10,7 +13,29 @@ export type GprNewsArticle = {
   publishedAt: string | null
   image: string | null
   category: GprNewsCategory
+  type: GprNewsType
   signal: string
+  countries: string[]
+  tags: string[]
+}
+
+export type GprCountryNewsArticle = GprNewsArticle & {
+  // Alias kept for consumers that expect the card-friendly name.
+  imageUrl: string | null
+  relevance: number
+}
+
+export type GprCountryNewsProvider = "GDELT" | "Google News" | "RSS"
+
+export type GprCountryNewsResponse = {
+  status: "available"
+  checkedAt: string
+  iso3: string
+  provider: GprCountryNewsProvider
+  partial: boolean
+  articles: GprCountryNewsArticle[]
+  drivers: string[]
+  tags: string[]
 }
 
 export type GprNewsResponse = {

@@ -6,21 +6,35 @@ import {
   useRef,
   useState,
   type PointerEvent,
+  type ReactNode,
+  type RefObject,
 } from "react"
 import {
-  countryNames,
   countryRiskScores,
   getRiskLevel,
   riskLevels,
 } from "../data/geopolitical"
+import { countryDisplayName, iso3Of } from "../data/gpr-countries"
 import worldMap from "../data/world-map.json"
 import type { GprPeakNewsResponse, GprPoint, GprResponse } from "../lib/gpr"
+import { buildCountryView, countryForIso3 } from "../lib/gpr-country"
 import {
   gprDefinitions,
   type GprNewsArticle,
   type GprNewsCategory,
   type GprNewsResponse,
 } from "../lib/gpr-news"
+import { summarizeGpr } from "../lib/gpr-series"
+import { CountryRiskCard } from "./gpr/CountryRiskCard"
+import {
+  useCountryNews,
+  type CountryNewsStatus,
+} from "./gpr/useCountryNews"
+import {
+  useGprData,
+  type AvailableGpr,
+  type GprDataStatus,
+} from "./gpr/useGprData"
 import { Button, Heading, Icon, Select } from "./ui"
 import "./gpr-dashboard.css"
 
@@ -44,7 +58,7 @@ const periods: Record<Period, {
   "3A": { label: "Últimos 3 años", bucket: "month", months: 36 },
 }
 const countryLabel = (country: typeof worldMap[number]) =>
-  countryNames[country.id] ?? country.name
+  countryDisplayName(country.id, country.name)
 const countries = [...worldMap].sort((a, b) =>
   countryLabel(a).localeCompare(countryLabel(b), "es"),
 )
@@ -364,7 +378,15 @@ function GprPeakNews() {
   )
 }
 
-function RiskChart() {
+function RiskChart({
+  data,
+  status,
+  onRetry,
+}: {
+  data: AvailableGpr | null
+  status: GprDataStatus
+  onRetry: () => void
+}) {
   const [period, setPeriod] = useState<Period>("1M")
   const [visible, setVisible] = useState<Record<SeriesKey, boolean>>({
     gpr: true,
@@ -373,36 +395,8 @@ function RiskChart() {
   })
   const [hovered, setHovered] = useState<number | null>(null)
   const [chartWidth, setChartWidth] = useState(800)
-  const [data, setData] = useState<Extract<GprResponse, {
-    status: "available"
-  }> | null>(null)
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const canvasRef = useRef<HTMLDivElement>(null)
   const gradientId = useId()
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setStatus("loading")
-    try {
-      const response = await fetch("/api/gpr", { signal })
-      const result: GprResponse = await response.json()
-      if (
-        !response.ok ||
-        result.status !== "available" ||
-        !result.points.length
-      )
-        throw new Error("GPR unavailable")
-      if (!signal?.aborted) {
-        setData(result)
-        setStatus("ready")
-      }
-    } catch {
-      if (!signal?.aborted) setStatus("error")
-    }
-  }, [])
-  useEffect(() => {
-    const controller = new AbortController()
-    void load(controller.signal)
-    return () => controller.abort()
-  }, [load])
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -516,7 +510,7 @@ function RiskChart() {
             {status === "error" ? (
               <>
                 <span>No se pudieron obtener los datos oficiales del GPR.</span>
-                <Button variant="secondary" onClick={() => void load()}>
+                <Button variant="secondary" onClick={onRetry}>
                   Reintentar
                 </Button>
               </>
@@ -695,20 +689,20 @@ function RiskChart() {
   )
 }
 
-function WorldRiskMap() {
+function WorldRiskMap({
+  selectedId,
+  onSelect,
+  children,
+}: {
+  selectedId: string
+  onSelect: (id: string) => void
+  children: ReactNode
+}) {
   const countrySelectId = useId()
-  const [selectedId, setSelectedId] = useState("RU")
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [center, setCenter] = useState({ x: 450, y: 215 })
-  const selected = worldMap.find((country) => country.id === selectedId)!
-  const active =
-    worldMap.find((country) => country.id === hoveredId) ?? selected
-  const score = countryRiskScores[active.id]
-  const level = getRiskLevel(score)
   const selectCountry = (id: string) => {
-    setSelectedId(id)
-    setHoveredId(null)
+    onSelect(id)
   }
 
   return (
@@ -747,7 +741,6 @@ function WorldRiskMap() {
           viewBox="0 0 900 430"
           role="group"
           aria-label="Mapa mundial interactivo. Los colores representan niveles de riesgo ilustrativos."
-          onPointerLeave={() => setHoveredId(null)}
         >
           <g className="gpr-graticule" aria-hidden="true">
             {[90, 180, 270, 360].map((y) => (
@@ -778,7 +771,6 @@ function WorldRiskMap() {
                       : `${countryScore} de 100, riesgo ${countryLevel.label}`
                   }`}
                   aria-pressed={selectedId === country.id}
-                  onPointerEnter={() => setHoveredId(country.id)}
                   onClick={(event) => {
                     selectCountry(country.id)
                     if (zoom === 1) {
@@ -847,20 +839,7 @@ function WorldRiskMap() {
             <Icon name="history" size={15} />
           </Button>
         </div>
-        <div
-          className={`gpr-country-detail risk-${level.className}`}
-          aria-live="polite"
-        >
-          <span className="gpr-country-indicator" />
-          <div>
-            <strong>{countryLabel(active)}</strong>
-            <small>Riesgo {level.label.toLowerCase()}</small>
-          </div>
-          <b>
-            {score ?? "—"}
-            <small>/ 100</small>
-          </b>
-        </div>
+        {children}
       </div>
       <div className="gpr-map-legend">
         {riskLevels.map((item, index) => (
@@ -951,7 +930,25 @@ function NewsItem({ article }: { article: GprNewsArticle }) {
   )
 }
 
-function GeopoliticalNews() {
+function GeopoliticalNews({
+  countryFilter,
+  countryName,
+  countryArticles,
+  countryStatus,
+  tagFilter,
+  onClearCountry,
+  onClearTag,
+  feedRef,
+}: {
+  countryFilter: string | null
+  countryName: string | null
+  countryArticles: GprNewsArticle[]
+  countryStatus: CountryNewsStatus
+  tagFilter: string | null
+  onClearCountry: () => void
+  onClearTag: () => void
+  feedRef: RefObject<HTMLElement | null>
+}) {
   const [filter, setFilter] = useState<GprNewsCategory | "all">("all")
   const [showAll, setShowAll] = useState(false)
   const [articles, setArticles] = useState<GprNewsArticle[]>([])
@@ -979,26 +976,43 @@ function GeopoliticalNews() {
     return () => controller.abort()
   }, [load])
 
+  const base = countryFilter && countryArticles.length ? countryArticles : articles
+  const scoped = useMemo(
+    () =>
+      base.filter(
+        (item) =>
+          (!countryFilter || item.countries.includes(countryFilter)) &&
+          (!tagFilter || item.tags.includes(tagFilter)),
+      ),
+    [base, countryFilter, tagFilter],
+  )
   const counts = useMemo(
     () => ({
-      all: articles.length,
-      act: articles.filter((item) => item.category === "act").length,
-      threat: articles.filter((item) => item.category === "threat").length,
+      all: scoped.length,
+      act: scoped.filter((item) => item.category === "act").length,
+      threat: scoped.filter((item) => item.category === "threat").length,
     }),
-    [articles],
+    [scoped],
   )
-  const filtered = articles.filter(
+  const filtered = scoped.filter(
     (item) => filter === "all" || item.category === filter,
   )
   const displayed = showAll ? filtered : filtered.slice(0, NEWS_PAGE)
+  const loading =
+    status === "loading" ||
+    (!!countryFilter && countryStatus === "loading" && !countryArticles.length)
 
   return (
-    <aside className="gpr-news-column">
+    <aside className="gpr-news-column" ref={feedRef} tabIndex={-1}>
       <section className="card gpr-news">
         <div className="gpr-news-heading">
           <span className="gpr-section-eyebrow">GEOPOLITICAL NEWS FEED</span>
           <Heading level={2}>Noticias geopolíticas</Heading>
-          <p>Titulares reales, clasificados como actos o amenazas</p>
+          <p>
+            {countryName
+              ? `Titulares vinculados a ${countryName}`
+              : "Titulares reales, clasificados como actos o amenazas"}
+          </p>
         </div>
         <div className="gpr-news-filters" aria-label="Filtrar noticias">
           {(["all", "act", "threat"] as const).map((item) => (
@@ -1012,19 +1026,46 @@ function GeopoliticalNews() {
               }}
             >
               {newsFilters[item]}
-              {status === "ready" && <small>{counts[item]}</small>}
+              {!loading && <small>{counts[item]}</small>}
             </Button>
           ))}
         </div>
-        <div className="gpr-news-list" aria-busy={status === "loading"}>
-          {status === "loading" &&
+        {(countryFilter || tagFilter) && (
+          <div className="gpr-news-scope" aria-label="Filtros activos">
+            {countryFilter && (
+              <button
+                type="button"
+                className="gpr-news-scope-chip"
+                onClick={onClearCountry}
+              >
+                {countryName ?? countryFilter}
+                <span aria-hidden>✕</span>
+              </button>
+            )}
+            {tagFilter && (
+              <button
+                type="button"
+                className="gpr-news-scope-chip"
+                onClick={onClearTag}
+              >
+                #{tagFilter}
+                <span aria-hidden>✕</span>
+              </button>
+            )}
+            <span className="gpr-news-scope-count">
+              {loading ? "Filtrando…" : `${scoped.length} titulares`}
+            </span>
+          </div>
+        )}
+        <div className="gpr-news-list" aria-busy={loading}>
+          {loading &&
             Array.from({ length: 4 }, (_, index) => (
               <div key={index} className="gpr-news-skeleton" aria-hidden>
                 <span />
                 <span />
               </div>
             ))}
-          {status === "error" && (
+          {status === "error" && !countryArticles.length && (
             <div className="gpr-news-state" role="status">
               <span>No se pudieron cargar los titulares ahora mismo.</span>
               <Button variant="secondary" onClick={() => void load()}>
@@ -1032,17 +1073,32 @@ function GeopoliticalNews() {
               </Button>
             </div>
           )}
-          {status === "ready" && !filtered.length && (
-            <p className="gpr-news-state" role="status">
-              No hay titulares de este tipo en las fuentes en este momento.
-            </p>
+          {!loading && !filtered.length && (
+            <div className="gpr-news-state" role="status">
+              <span>
+                {countryName
+                  ? `No hay titulares de ${countryName} en las fuentes actuales.`
+                  : "No hay titulares de este tipo en las fuentes en este momento."}
+              </span>
+              {(countryFilter || tagFilter) && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    onClearCountry()
+                    onClearTag()
+                  }}
+                >
+                  Quitar filtros
+                </Button>
+              )}
+            </div>
           )}
-          {status === "ready" &&
+          {!loading &&
             displayed.map((article) => (
               <NewsItem key={article.id} article={article} />
             ))}
         </div>
-        {status === "ready" && filtered.length > NEWS_PAGE && (
+        {!loading && filtered.length > NEWS_PAGE && (
           <Button
             variant="ghost"
             className="gpr-news-more"
@@ -1084,12 +1140,14 @@ function GeopoliticalNews() {
         <details>
           <summary>Sobre los datos</summary>
           <p>
-            El gráfico de evolución usa el índice diario oficial de Caldara e
-            Iacoviello. Las tarjetas y el mapa usan valores de muestra. Las
-            noticias son titulares reales de las fuentes indicadas, actualizados
-            cada pocos minutos y etiquetados automáticamente como GPRA o GPRT
-            según las palabras que contienen. No constituye asesoramiento de
-            inversión.
+            El gráfico y las tarjetas de arriba usan el índice diario oficial de
+            Caldara e Iacoviello. El mapa, el desglose GPRA/GPRT y el trend por
+            país son ilustrativos: no existe un desglose oficial por país. Las
+            noticias son titulares reales de las fuentes indicadas,
+            actualizados cada pocos minutos y etiquetados automáticamente como
+            GPRA o GPRT. La card del país consulta GDELT y Google News; cuando
+            un país no tiene cobertura se indica de forma explícita. No
+            constituye asesoramiento de inversión.
           </p>
         </details>
       </section>
@@ -1097,7 +1155,94 @@ function GeopoliticalNews() {
   )
 }
 
+const metricNumber = new Intl.NumberFormat("es", { maximumFractionDigits: 0 })
+const signedPercent = new Intl.NumberFormat("es", {
+  maximumFractionDigits: 1,
+  signDisplay: "always",
+})
+const signedPoints = new Intl.NumberFormat("es", {
+  maximumFractionDigits: 0,
+  signDisplay: "always",
+})
+
 export default function GPRDashboard() {
+  const [selectedIso2, setSelectedIso2] = useState("RU")
+  const [countryFilter, setCountryFilter] = useState<string | null>(null)
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const feedRef = useRef<HTMLElement>(null)
+  const { data, status, reload } = useGprData()
+  const summary = useMemo(
+    () => (data ? summarizeGpr(data.points) : null),
+    [data],
+  )
+  const news = useCountryNews(iso3Of(selectedIso2))
+  const country = useMemo(
+    () => buildCountryView(selectedIso2, news.data),
+    [selectedIso2, news.data],
+  )
+  const filterCountry = countryFilter ? countryForIso3(countryFilter) : null
+  const countryArticles = useMemo(
+    () =>
+      countryFilter && countryFilter === country.iso3
+        ? (news.data?.articles ?? [])
+        : [],
+    [countryFilter, country.iso3, news.data],
+  )
+
+  const selectCountry = useCallback((iso2: string) => {
+    setSelectedIso2(iso2)
+    setCountryFilter(iso3Of(iso2))
+    setTagFilter(null)
+    setDetailOpen(true)
+  }, [])
+
+  const openNews = () => {
+    setCountryFilter(iso3Of(selectedIso2))
+    setTagFilter(null)
+    const node = feedRef.current
+    if (!node) return
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches
+    node.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    })
+    node.focus({ preventScroll: true })
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      if (detailOpen) {
+        setDetailOpen(false)
+        return
+      }
+      if (countryFilter || tagFilter) {
+        setCountryFilter(null)
+        setTagFilter(null)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [detailOpen, countryFilter, tagFilter])
+
+  const unavailable =
+    status === "error" ? "No se pudieron cargar los datos" : "Calculando…"
+  const gprChange =
+    summary?.gprDeltaPct != null
+      ? `${signedPercent.format(summary.gprDeltaPct)}% vs. media del mes anterior`
+      : unavailable
+  const gpraChange =
+    summary?.gpraDelta != null
+      ? `${signedPoints.format(summary.gpraDelta)} pts vs. media del mes anterior`
+      : unavailable
+  const gprtChange =
+    summary?.gprtDelta != null
+      ? `${signedPoints.format(summary.gprtDelta)} pts vs. media del mes anterior`
+      : unavailable
+
   return (
     <div className="gpr-dashboard">
       <header className="gpr-page-header">
@@ -1114,40 +1259,71 @@ export default function GPRDashboard() {
           <div className="gpr-metrics">
             <RiskMetric
               label="GPR Index"
-              value="142.5"
+              value={summary ? metricNumber.format(summary.gpr) : "—"}
               detail="Riesgo geopolítico global"
-              change="+8,2% vs. mes anterior"
+              change={gprChange}
               illustration="global"
               tone="blue"
             />
             <RiskMetric
               label="GPRA · Actos"
-              value="15"
+              value={summary ? metricNumber.format(summary.gpra) : "—"}
               detail="Actos geopolíticos"
-              change="+3 vs. mes anterior"
+              change={gpraChange}
               illustration="acts"
               tone="green"
             />
             <RiskMetric
               label="GPRT · Amenazas"
-              value="22"
+              value={summary ? metricNumber.format(summary.gprt) : "—"}
               detail="Amenazas geopolíticas"
-              change="−2 vs. mes anterior"
+              change={gprtChange}
               illustration="threats"
               tone="orange"
             />
           </div>
-          <RiskChart />
-          <WorldRiskMap />
+          <RiskChart
+            data={data}
+            status={status}
+            onRetry={() => {
+              void reload()
+            }}
+          />
+          <WorldRiskMap selectedId={selectedIso2} onSelect={selectCountry}>
+            <CountryRiskCard
+              country={country}
+              expanded={detailOpen}
+              newsStatus={news.status}
+              provider={news.data?.provider ?? null}
+              partial={news.data?.partial ?? false}
+              activeTag={tagFilter}
+              onToggle={() => setDetailOpen(true)}
+              onClose={() => setDetailOpen(false)}
+              onTagClick={(tag) => {
+                setCountryFilter(iso3Of(selectedIso2))
+                setTagFilter((current) => (current === tag ? null : tag))
+              }}
+              onOpenNews={openNews}
+            />
+          </WorldRiskMap>
         </div>
-        <GeopoliticalNews />
+        <GeopoliticalNews
+          countryFilter={countryFilter}
+          countryName={filterCountry?.name ?? null}
+          countryArticles={countryArticles}
+          countryStatus={news.status}
+          tagFilter={tagFilter}
+          onClearCountry={() => setCountryFilter(null)}
+          onClearTag={() => setTagFilter(null)}
+          feedRef={feedRef}
+        />
       </div>
       <footer className="gpr-footer">
         <Icon name="info" size={14} />
         <span>
-          El gráfico de evolución usa datos diarios oficiales del GPR y las
-          noticias son titulares reales. Las tarjetas y el mapa son
-          ilustrativos.
+          El gráfico y las tarjetas de arriba usan el mismo índice diario oficial
+          del GPR; el mapa y el desglose por país son ilustrativos. Las noticias
+          son titulares reales.
         </span>
       </footer>
     </div>
