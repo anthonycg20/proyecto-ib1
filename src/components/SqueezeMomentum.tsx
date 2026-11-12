@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { PointerEvent } from "react"
 import type { SqueezePoint } from "@/lib/squeeze"
 
 const BAR_COLORS: Record<SqueezePoint["barColor"], string> = {
@@ -16,13 +17,34 @@ const CROSS_COLORS: Record<SqueezePoint["crossColor"], string> = {
   gray: "#9aa4b2",
 }
 
-const VISIBLE_BARS = 180
+const RANGE_OPTIONS = [60, 120, 180, 300] as const
+const DEFAULT_BARS = 180
 
 const stateLabels: Record<string, string> = {
   on: "Squeeze comprimido",
   off: "Squeeze disparado",
   none: "Sin compresión",
 }
+
+const clockFormat = new Intl.DateTimeFormat("es-AR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+})
+const dayFormat = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "short",
+  timeZone: "UTC",
+})
+const stampFormat = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+})
 
 function formatValue(value: number | undefined) {
   if (value === undefined) return "—"
@@ -33,22 +55,67 @@ function formatValue(value: number | undefined) {
   }).format(value)
 }
 
+// Daily series are labelled by date; intraday ones by UTC clock time, which is
+// the timezone the TradingView chart above is configured with. Windows that
+// cross midnight also show the date to avoid ambiguity.
+function formatWindow(points: SqueezePoint[]) {
+  if (!points.length) return ""
+  const step =
+    points.length > 1 ? points.at(-1)!.time - points.at(-2)!.time : 0
+  const first = new Date(points[0].time * 1000)
+  const last = new Date(points.at(-1)!.time * 1000)
+  if (step >= 86_400)
+    return `${dayFormat.format(first)} – ${dayFormat.format(last)}`
+  const sameDay = first.toISOString().slice(0, 10) === last.toISOString().slice(0, 10)
+  if (!sameDay)
+    return `${stampFormat.format(first)} – ${stampFormat.format(last)} UTC`
+  return `${clockFormat.format(first)}–${clockFormat.format(last)} UTC`
+}
+
 export default function SqueezeMomentum({
   points,
   state,
   loading,
   error,
   notice,
+  resetKey,
 }: {
   points: SqueezePoint[]
   state: "on" | "off" | "none" | null
   loading: boolean
   error: boolean
   notice: string | null
+  /** Symbol + interval; resets the window to the latest candles when it changes. */
+  resetKey?: string
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const slotRef = useRef(1)
+  const dragRef = useRef<{ x: number; offset: number } | null>(null)
+  const [bars, setBars] = useState<number | "all">(DEFAULT_BARS)
+  const [offset, setOffset] = useState(0)
+
+  const total = points.length
+  const effective = bars === "all" ? total : Math.min(bars, total)
+  const maxOffset = Math.max(0, total - effective)
+  const safeOffset = Math.min(offset, maxOffset)
+  const end = total - safeOffset
+  const start = Math.max(0, end - effective)
+  const visible = useMemo(
+    () => points.slice(start, end),
+    [points, start, end],
+  )
   const last = points.at(-1)
+  const rangeLabel = formatWindow(visible)
+  const page = Math.max(1, Math.round(effective / 6))
+
+  useEffect(() => {
+    setOffset(0)
+  }, [resetKey])
+
+  useEffect(() => {
+    if (offset > maxOffset) setOffset(maxOffset)
+  }, [offset, maxOffset])
 
   useEffect(() => {
     const wrap = wrapRef.current
@@ -67,7 +134,6 @@ export default function SqueezeMomentum({
       context.setTransform(ratio, 0, 0, ratio, 0, 0)
       context.clearRect(0, 0, width, height)
 
-      const visible = points.slice(-VISIBLE_BARS)
       if (!visible.length) return
 
       const padLeft = 8
@@ -92,6 +158,7 @@ export default function SqueezeMomentum({
       const toY = (value: number) => padTop + ((max - value) / span) * plotHeight
       const zeroY = toY(0)
       const slot = plotWidth / visible.length
+      slotRef.current = slot
 
       context.strokeStyle = "rgba(255, 255, 255, 0.08)"
       context.lineWidth = 1
@@ -100,7 +167,7 @@ export default function SqueezeMomentum({
       context.lineTo(width - padRight, Math.round(zeroY) + 0.5)
       context.stroke()
 
-      const barWidth = Math.max(1, Math.min(5, slot * 0.66))
+      const barWidth = Math.max(1, Math.min(10, slot * 0.7))
       for (let index = 0; index < visible.length; index++) {
         const point = visible[index]
         const x = padLeft + slot * index + slot / 2
@@ -111,7 +178,7 @@ export default function SqueezeMomentum({
         context.fillRect(x - barWidth / 2, top, barWidth, barHeight)
       }
 
-      const half = Math.min(2.4, Math.max(1.2, slot * 0.35))
+      const half = Math.min(3, Math.max(1.2, slot * 0.35))
       for (let index = 0; index < visible.length; index++) {
         const point = visible[index]
         const x = padLeft + slot * index + slot / 2
@@ -145,7 +212,7 @@ export default function SqueezeMomentum({
     const observer = new ResizeObserver(draw)
     observer.observe(wrap)
     return () => observer.disconnect()
-  }, [points])
+  }, [visible])
 
   const badge = notice
     ? "bg-white/8 text-[#9aa4b2]"
@@ -161,6 +228,37 @@ export default function SqueezeMomentum({
     : state
       ? stateLabels[state]
       : "Calculando"
+
+  const presetClass = (active: boolean) =>
+    `rounded px-1.5 py-0.5 text-[9px] font-medium tabular-nums transition-colors ${
+      active
+        ? "bg-[#2a2e39] text-white"
+        : "text-[#848e9c] hover:bg-[#2a2e39] hover:text-white"
+    }`
+  const pagerClass =
+    "grid size-5 place-items-center rounded text-[11px] leading-none text-[#848e9c] transition-colors hover:bg-[#2a2e39] hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#848e9c]"
+
+  const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0 || maxOffset === 0) return
+    dragRef.current = { x: event.clientX, offset: safeOffset }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const delta = Math.round(
+      (event.clientX - drag.x) / Math.max(1, slotRef.current),
+    )
+    setOffset(Math.min(maxOffset, Math.max(0, drag.offset + delta)))
+  }
+
+  const endDrag = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId)
+  }
 
   return (
     <div className="border-t border-[#2a2e39] bg-[#131722]">
@@ -186,13 +284,92 @@ export default function SqueezeMomentum({
         </div>
       </div>
 
+      {points.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[#2a2e39] px-2.5 py-1">
+          <div
+            className="flex items-center gap-0.5"
+            role="group"
+            aria-label="Velas visibles en el Squeeze"
+          >
+            <span className="mr-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#5d6677]">
+              Ventana
+            </span>
+            {RANGE_OPTIONS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={bars === value}
+                onClick={() => {
+                  setBars(value)
+                  setOffset(0)
+                }}
+                className={presetClass(bars === value)}
+              >
+                {value}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-pressed={bars === "all"}
+              onClick={() => {
+                setBars("all")
+                setOffset(0)
+              }}
+              className={presetClass(bars === "all")}
+            >
+              Todo
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Ver velas más antiguas"
+              title="Ver velas más antiguas"
+              disabled={safeOffset >= maxOffset}
+              onClick={() =>
+                setOffset(Math.min(maxOffset, safeOffset + page))
+              }
+              className={pagerClass}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              aria-label="Ver velas más recientes"
+              title="Ver velas más recientes"
+              disabled={safeOffset === 0}
+              onClick={() => setOffset(Math.max(0, safeOffset - page))}
+              className={pagerClass}
+            >
+              →
+            </button>
+            <span className="min-w-[90px] text-right text-[9px] tabular-nums text-[#5d6677]">
+              {rangeLabel}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div
         ref={wrapRef}
         className="relative h-[132px] w-full"
         role="img"
-        aria-label={`Squeeze Momentum: ${notice ?? (state ? stateLabels[state] : "sin datos")}, último valor ${formatValue(last?.value)}`}
+        aria-label={`Squeeze Momentum: ${notice ?? (state ? stateLabels[state] : "sin datos")}, último valor ${formatValue(last?.value)}${rangeLabel ? `, ventana de ${visible.length} velas (${rangeLabel})` : ""}`}
       >
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+        <canvas
+          ref={canvasRef}
+          className={`absolute inset-0 h-full w-full ${
+            maxOffset > 0 ? "cursor-grab active:cursor-grabbing" : ""
+          }`}
+          style={{ touchAction: "pan-y" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
+          onDoubleClick={() => setOffset(0)}
+        />
         {points.length === 0 && (
           <div className="absolute inset-0 grid place-items-center px-4 text-center text-[11px] text-[#848e9c]">
             {notice

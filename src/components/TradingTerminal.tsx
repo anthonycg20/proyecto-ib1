@@ -441,17 +441,22 @@ export default function TradingTerminal() {
             loading={candlesLoading}
             error={candlesError}
             notice={notice}
+            resetKey={`${symbol}-${rawInterval}`}
           />
         </div>
       </div>
 
       <p className="m-0 border-t border-[#2a2e39] bg-[#1e222d] px-3 py-2 text-[10px] leading-relaxed text-[#848e9c]">
         Gráfico: TradingView; la temporalidad y el símbolo que elegís en su barra
-        se aplican al panel. Squeeze Momentum: réplica del script de LazyBear (BB
-        20 con 1,5σ, KC 20 con 1,5·ATR, regresión lineal de 20 velas); en la
-        línea de cero, negro = comprimido, gris = disparado, azul = sin
-        compresión. Velas y precios: Yahoo Finance, cada 60 segundos (XAUUSD se
-        aproxima con futuros GC=F). No constituye asesoramiento de inversión.
+        se aplican al panel. La ventana del Squeeze (60/120/180/300/Todo) es
+        independiente del zoom de TradingView: usá las flechas o arrastrá el
+        panel para recorrer el histórico (doble clic vuelve al presente). Squeeze
+        Momentum: réplica del script de LazyBear (BB 20 con 1,5σ, KC 20 con
+        1,5·ATR, regresión lineal de 20 velas); en la línea de cero, negro =
+        comprimido, gris = disparado, azul = sin compresión. Velas y precios:
+        Yahoo Finance, cada 60 segundos (XAUUSD se aproxima con futuros GC=F), por
+        lo que el indicador se calcula sobre esas velas y no sobre las de
+        TradingView. No constituye asesoramiento de inversión.
       </p>
     </section>
   )
