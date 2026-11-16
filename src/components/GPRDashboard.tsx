@@ -328,11 +328,11 @@ function GprPeakNews() {
         if (event.currentTarget.open && status === "idle") void load()
       }}
     >
-      <summary>Titulares clave de la última semana</summary>
+      <summary>Titulares de prensa en los picos del GPR</summary>
       <div className="gpr-peak-news-content">
         {status === "loading" && (
           <p className="gpr-peak-news-state" role="status">
-            Buscando los titulares de la última semana…
+            Buscando noticias de los días con mayor riesgo…
           </p>
         )}
         {status === "error" && (
@@ -345,13 +345,12 @@ function GprPeakNews() {
         )}
         {status === "ready" && data && (
           <div className="gpr-peak-days">
-            {data.days
-              .filter((day) => day.headlines.length > 0)
-              .map((day) => (
-                <section key={day.date} className="gpr-peak-day">
-                  <header>
-                    <strong>{fullDay.format(utcDate(day.date))}</strong>
-                  </header>
+            {data.days.map((day) => (
+              <section key={day.date} className="gpr-peak-day">
+                <header>
+                  <strong>{fullDay.format(utcDate(day.date))}</strong>
+                </header>
+                {day.headlines.length ? (
                   <ol>
                     {day.headlines.map((headline) => (
                       <li key={headline.url}>
@@ -365,8 +364,13 @@ function GprPeakNews() {
                       </li>
                     ))}
                   </ol>
-                </section>
-              ))}
+                ) : (
+                  <p className="gpr-peak-empty">
+                    No hay titulares disponibles para esta fecha.
+                  </p>
+                )}
+              </section>
+            ))}
           </div>
         )}
       </div>

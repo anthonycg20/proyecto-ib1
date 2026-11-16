@@ -10,7 +10,7 @@ export const maxDuration = 60
 export async function GET() {
   try {
     const data = await cached(
-      "gpr-peak-news-v10",
+      "gpr-peak-news-v9",
       6 * 60 * 60_000,
       loadGprPeakNews,
     )
