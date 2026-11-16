@@ -234,13 +234,12 @@ export async function loadGprPeakNews() {
   const last = data.points.at(-1)
   if (!last) throw new Error("No GPR observations")
 
-  const start = new Date(`${last.date}T00:00:00Z`)
-  start.setUTCMonth(start.getUTCMonth() - 1)
-  const startKey = start.toISOString().slice(0, 10)
+  const lastTime = Date.parse(`${last.date}T00:00:00Z`)
+  const cutoff = new Date(lastTime - 6 * DAY_MS).toISOString().slice(0, 10)
+  // Strictly the last seven calendar days of the dataset, most recent first.
   const peaks = data.points
-    .filter((point) => point.date >= startKey && point.date <= last.date)
-    .sort((a, b) => b.gpr - a.gpr)
-    .slice(0, 5)
+    .filter((point) => point.date >= cutoff && point.date <= last.date)
+    .sort((a, b) => b.date.localeCompare(a.date))
 
   const results = await Promise.allSettled(
     peaks.map((point) => headlinesForDay(point.date)),
@@ -279,19 +278,22 @@ export async function loadGprPeakNews() {
     }
   }
 
-  const days: GprPeakDay[] = peaks.map((point, index) => ({
-    ...point,
-    provider: loaded[index].provider,
-    headlines: [...assignments.values()]
-      .filter((assignment) => assignment.dayIndex === index)
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 5)
-      .map(({ headline }) => ({
-        title: headline.title,
-        url: headline.url,
-        source: headline.source,
-      })),
-  }))
+  const days: GprPeakDay[] = peaks
+    .map((point, index) => ({
+      ...point,
+      provider: loaded[index].provider,
+      headlines: [...assignments.values()]
+        .filter((assignment) => assignment.dayIndex === index)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5)
+        .map(({ headline }) => ({
+          title: headline.title,
+          url: headline.url,
+          source: headline.source,
+        })),
+    }))
+    // Days without news are omitted so the panel never renders empty cards.
+    .filter((day) => day.headlines.length > 0)
 
   return {
     status: "available" as const,
