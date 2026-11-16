@@ -9,6 +9,7 @@ import type {
   WatchlistQuotesResponse,
 } from "@/lib/market-data"
 import { computeSqueeze } from "@/lib/squeeze"
+import { macroAssetTargets } from "@/lib/macro-impact"
 import SqueezeMomentum from "./SqueezeMomentum"
 
 const CHART_TAG = "tv-advanced-chart"
@@ -92,6 +93,7 @@ type ChartTarget = {
 }
 
 const knownTargets: Record<string, ChartTarget> = {
+  ...macroAssetTargets,
   "OANDA:XAUUSD": { ticker: "GC=F", label: "XAUUSD" },
   "FX_IDC:AUDUSD": { ticker: "AUDUSD=X", label: "AUDUSD" },
   "FOREXCOM:NSXUSD": { ticker: "^NDX", label: "NAS100" },
@@ -153,16 +155,23 @@ const chartStudies = [
   "StochasticRSI@tv-basicstudies",
 ]
 
-export default function TradingTerminal() {
+// `initialSymbol` llega desde las tarjetas de la agenda macro: abre la Terminal
+// ya posicionada en el activo elegido, sin tocar el símbolo que el usuario
+// seleccione después en la barra de TradingView.
+export default function TradingTerminal({
+  initialSymbol = null,
+}: {
+  initialSymbol?: string | null
+}) {
   const chartRef = useRef<HTMLElement | null>(null)
   const chartHostRef = useRef<HTMLDivElement | null>(null)
-  const [symbol, setSymbol] = useState("OANDA:XAUUSD")
+  const startSymbolRef = useRef(initialSymbol ?? "OANDA:XAUUSD")
+  const [symbol, setSymbol] = useState(initialSymbol ?? "OANDA:XAUUSD")
   const [rawInterval, setRawInterval] = useState("1")
   const [timeframe, setTimeframe] = useState<CandleInterval | null>("1m")
-  const [target, setTarget] = useState<ChartTarget | null>({
-    ticker: "GC=F",
-    label: "XAUUSD",
-  })
+  const [target, setTarget] = useState<ChartTarget | null>(() =>
+    resolveTarget(initialSymbol ?? "OANDA:XAUUSD"),
+  )
   const [chartError, setChartError] = useState(false)
   const [chartReady, setChartReady] = useState(false)
   const [quotes, setQuotes] = useState<Record<string, WatchlistQuote>>({})
@@ -273,6 +282,14 @@ export default function TradingTerminal() {
   }, [ticker, timeframe])
 
   useEffect(() => {
+    const next = initialSymbol ?? "OANDA:XAUUSD"
+    startSymbolRef.current = next
+    const chart = chartRef.current
+    if (!chart || chart.getAttribute("symbol") === next) return
+    chart.setAttribute("symbol", next)
+  }, [initialSymbol])
+
+  useEffect(() => {
     const host = chartHostRef.current
     if (!host) return
     let cancelled = false
@@ -295,7 +312,7 @@ export default function TradingTerminal() {
       .then(() => {
         if (cancelled || !chartHostRef.current) return
         const chart = document.createElement(CHART_TAG)
-        chart.setAttribute("symbol", "OANDA:XAUUSD")
+        chart.setAttribute("symbol", startSymbolRef.current)
         chart.setAttribute("interval", "1")
         chart.setAttribute("theme", "dark")
         chart.setAttribute("timezone", "Etc/UTC")
@@ -362,6 +379,16 @@ export default function TradingTerminal() {
               {quotesError ? "Sin datos" : "En vivo"}
             </span>
           </div>
+          {!activeInstrument && (
+            <div className="border-b border-[#262b3e] bg-[#2a2e39] px-2.5 py-2">
+              <span className="block text-[10px] text-[#848e9c]">
+                Activo abierto
+              </span>
+              <span className="block truncate font-semibold text-white">
+                {target?.label ?? symbol.split(":").at(-1)}
+              </span>
+            </div>
+          )}
           <div
             className="flex overflow-x-auto lg:block lg:overflow-visible"
             role="group"

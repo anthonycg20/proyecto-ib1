@@ -16,6 +16,7 @@ import {
 import Link from "next/link"
 import { Button, Heading, Icon } from "./ui"
 import NewsThumbnail from "./NewsThumbnail"
+import MacroAgenda from "./MacroAgenda"
 import EconomicCalendar from "./EconomicCalendar"
 import type {
   HeatmapAsset,
@@ -969,11 +970,18 @@ const sentimentLabels = {
   neutral: "Neutral",
 }
 
-function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
+function NewsFeed({
+  openSentiment,
+  onOpenAsset,
+}: {
+  openSentiment: () => void
+  onOpenAsset?: (tvSymbol: string) => void
+}) {
   const [news, setNews] = useState<MarketNewsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [filter, setFilter] = useState<"all" | HeadlineSentiment>("all")
+  const [view, setView] = useState<"news" | "agenda">("news")
   const request = useRef<AbortController | null>(null)
   const refresh = useCallback(async () => {
     request.current?.abort()
@@ -1025,207 +1033,241 @@ function NewsFeed({ openSentiment }: { openSentiment: () => void }) {
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
         <PanelTitle>Radar de noticias</PanelTitle>
-        <Button
-          variant="ghost"
-          aria-label="Actualizar noticias"
-          disabled={loading}
-          onClick={() => void refresh()}
-          className="min-h-8! min-w-8! rounded-md! border border-[var(--line)] p-0! disabled:cursor-wait disabled:opacity-50"
-        >
-          <span
-            className={loading ? "animate-spin motion-reduce:animate-none" : ""}
-          >
-            <Icon name="history" size={15} />
-          </span>
-        </Button>
-      </div>
-      <div
-        className="flex items-center gap-1.5 px-4 pb-3 pt-1.5 text-xs text-[var(--muted)]"
-        role="status"
-      >
-        <span
-          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-            error
-              ? "bg-[var(--orange)]"
-              : available
-                ? "bg-[var(--sentiment-greed)]"
-                : "bg-[var(--muted)]"
-          }`}
-        />
-        {loading
-          ? "Consultando fuentes públicas"
-          : error
-            ? available
-              ? "Última consulta disponible"
-              : "Fuentes no disponibles"
-            : "Fuentes públicas · actualización cada 60 s"}
-      </div>
-      <div
-        className="flex gap-1 border-y border-[var(--line)] px-3 py-2"
-        role="group"
-        aria-label="Filtrar titulares por sentimiento NLP"
-      >
-        {(["all", "positive", "negative"] as const).map((state) => (
+        {view === "news" && (
           <Button
-            key={state}
             variant="ghost"
-            aria-pressed={filter === state}
-            onClick={() => setFilter(state)}
-            className={`min-h-8! rounded-md! px-2.5! text-xs! hover:translate-y-0! ${
-              filter === state
-                ? "bg-[var(--blue-soft)]! text-[var(--primary)]!"
-                : "text-[var(--muted)]!"
-            }`}
+            aria-label="Actualizar noticias"
+            disabled={loading}
+            onClick={() => void refresh()}
+            className="min-h-8! min-w-8! rounded-md! border border-[var(--line)] p-0! disabled:cursor-wait disabled:opacity-50"
           >
-            {state === "all"
-              ? "Todas"
-              : state === "positive"
-                ? "Positivas"
-                : "Negativas"}
-          </Button>
-        ))}
-      </div>
-      {error && (
-        <p
-          className="mx-4 mb-0 mt-3 rounded-md bg-[var(--orange-soft)] p-2.5 text-xs leading-relaxed text-[var(--muted)]"
-          role="status"
-        >
-          {available
-            ? "No se pudo actualizar. Se conservan los titulares y fechas de la última consulta correcta."
-            : "No se pudieron consultar las fuentes. No mostramos titulares inventados; podés volver a intentar."}
-        </p>
-      )}
-      <div
-        className="max-h-144 min-h-0 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-none"
-        aria-busy={loading}
-      >
-        {loading && !news ? (
-          <div className="divide-y divide-[var(--line)]" role="status">
-            <span className="sr-only">Cargando noticias</span>
-            {[0, 1, 2, 3, 4].map((item) => (
-              <div
-                key={item}
-                className="space-y-2 py-5 motion-safe:animate-pulse"
-              >
-                <div className="h-2 w-1/3 rounded bg-[var(--line)]" />
-                <div className="h-2.5 w-full rounded bg-[var(--line)]" />
-                <div className="h-2.5 w-3/4 rounded bg-[var(--line)]" />
-              </div>
-            ))}
-          </div>
-        ) : articles.length ? (
-          articles.map((article) => (
-            <article
-              key={article.id}
-              className="border-b border-[var(--line)] py-4 last:border-b-0"
+            <span
+              className={
+                loading ? "animate-spin motion-reduce:animate-none" : ""
+              }
             >
-              <div className="mb-2 flex items-center gap-2">
-                <span
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--blue-soft)] text-xs font-bold text-[var(--primary)]"
-                  aria-hidden="true"
-                >
-                  {article.source[0]}
-                </span>
-                <span className="min-w-0 truncate text-xs font-semibold">
-                  {article.source}
-                </span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <NewsThumbnail article={article} />
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm font-medium leading-5 text-[var(--ink)] no-underline underline-offset-4 hover:text-[var(--primary)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
-                  >
-                    {article.title}
-                    <span className="sr-only">
-                      {" "}
-                      (abre la fuente en otra pestaña)
-                    </span>
-                  </Link>
-                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
-                    <time
-                      dateTime={article.publishedAt ?? undefined}
-                      className="text-xs tabular-nums text-[var(--muted)]"
-                    >
-                      {article.publishedAt
-                        ? newsDateFormat.format(new Date(article.publishedAt))
-                        : "Sin fecha disponible"}
-                    </time>
-                    <span
-                      title="Sentimiento inferido por análisis NLP, no nivel de impacto"
-                      className={`flex items-center gap-1 text-xs ${
-                        article.sentiment === "positive"
-                          ? positive
-                          : article.sentiment === "negative"
-                            ? negative
-                            : "text-[var(--muted)]"
-                      }`}
-                    >
-                      <span
-                        className={`h-1 w-1 rounded-full ${
-                          article.sentiment === "positive"
-                            ? "bg-[var(--sentiment-greed)]"
-                            : article.sentiment === "negative"
-                              ? "bg-[var(--sentiment-critical)]"
-                              : "bg-[var(--muted)]"
-                        }`}
-                      />
-                      {sentimentLabels[article.sentiment]}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="flex min-h-60 flex-col items-center justify-center gap-3 py-10 text-center text-[var(--muted)]">
-            <Icon name={available ? "search" : "report"} size={28} />
-            <p className="m-0 max-w-56 text-xs leading-relaxed">
-              {available
-                ? "No hay titulares con este sentimiento. Probá con Todas."
-                : "Las noticias aparecerán aquí cuando las fuentes estén disponibles."}
-            </p>
-            {error && (
-              <Button
-                variant="secondary"
-                onClick={() => void refresh()}
-                disabled={loading}
-                className="min-h-8! text-xs!"
-              >
-                Reintentar
-              </Button>
-            )}
-          </div>
+              <Icon name="history" size={15} />
+            </span>
+          </Button>
         )}
       </div>
-      <div className="mt-auto border-t border-[var(--line)] px-4 py-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
-          <span>Sentimiento inferido por NLP</span>
-          {news && (
-            <time dateTime={news.checkedAt}>
-              Consulta: {newsDateFormat.format(new Date(news.checkedAt))}
-            </time>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          className="min-h-8! w-full justify-between! rounded-md! bg-[var(--background)]! px-2.5! text-xs!"
-          onClick={openSentiment}
-        >
-          Ver Sentiment Analysis <Icon name="arrow" size={14} />
-        </Button>
+      <div
+        className="mt-2 flex gap-1 border-y border-[var(--line)] px-3 py-2"
+        role="tablist"
+        aria-label="Vista del radar"
+      >
+        {(["news", "agenda"] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={view === option}
+            onClick={() => setView(option)}
+            className={`min-h-7 rounded-md px-2.5 text-xs font-medium transition-colors ${
+              view === option
+                ? "bg-[var(--blue-soft)] text-[var(--primary)]"
+                : "text-[var(--muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            {option === "news" ? "Titulares" : "Agenda macro"}
+          </button>
+        ))}
       </div>
+      {view === "news" ? (
+        <>
+          <div
+            className="flex items-center gap-1.5 px-4 pb-3 pt-1.5 text-xs text-[var(--muted)]"
+            role="status"
+          >
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                error
+                  ? "bg-[var(--orange)]"
+                  : available
+                    ? "bg-[var(--sentiment-greed)]"
+                    : "bg-[var(--muted)]"
+              }`}
+            />
+            {loading
+              ? "Consultando fuentes públicas"
+              : error
+                ? available
+                  ? "Última consulta disponible"
+                  : "Fuentes no disponibles"
+                : "Fuentes públicas · actualización cada 60 s"}
+          </div>
+          <div
+            className="flex gap-1 border-y border-[var(--line)] px-3 py-2"
+            role="group"
+            aria-label="Filtrar titulares por sentimiento NLP"
+          >
+            {(["all", "positive", "negative"] as const).map((state) => (
+              <Button
+                key={state}
+                variant="ghost"
+                aria-pressed={filter === state}
+                onClick={() => setFilter(state)}
+                className={`min-h-8! rounded-md! px-2.5! text-xs! hover:translate-y-0! ${
+                  filter === state
+                    ? "bg-[var(--blue-soft)]! text-[var(--primary)]!"
+                    : "text-[var(--muted)]!"
+                }`}
+              >
+                {state === "all"
+                  ? "Todas"
+                  : state === "positive"
+                    ? "Positivas"
+                    : "Negativas"}
+              </Button>
+            ))}
+          </div>
+          {error && (
+            <p
+              className="mx-4 mb-0 mt-3 rounded-md bg-[var(--orange-soft)] p-2.5 text-xs leading-relaxed text-[var(--muted)]"
+              role="status"
+            >
+              {available
+                ? "No se pudo actualizar. Se conservan los titulares y fechas de la última consulta correcta."
+                : "No se pudieron consultar las fuentes. No mostramos titulares inventados; podés volver a intentar."}
+            </p>
+          )}
+          <div
+            className="max-h-144 min-h-0 flex-1 overflow-y-auto px-4 min-[1180px]:max-h-none"
+            aria-busy={loading}
+          >
+            {loading && !news ? (
+              <div className="divide-y divide-[var(--line)]" role="status">
+                <span className="sr-only">Cargando noticias</span>
+                {[0, 1, 2, 3, 4].map((item) => (
+                  <div
+                    key={item}
+                    className="space-y-2 py-5 motion-safe:animate-pulse"
+                  >
+                    <div className="h-2 w-1/3 rounded bg-[var(--line)]" />
+                    <div className="h-2.5 w-full rounded bg-[var(--line)]" />
+                    <div className="h-2.5 w-3/4 rounded bg-[var(--line)]" />
+                  </div>
+                ))}
+              </div>
+            ) : articles.length ? (
+              articles.map((article) => (
+                <article
+                  key={article.id}
+                  className="border-b border-[var(--line)] py-4 last:border-b-0"
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--blue-soft)] text-xs font-bold text-[var(--primary)]"
+                      aria-hidden="true"
+                    >
+                      {article.source[0]}
+                    </span>
+                    <span className="min-w-0 truncate text-xs font-semibold">
+                      {article.source}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <NewsThumbnail article={article} />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={article.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm font-medium leading-5 text-[var(--ink)] no-underline underline-offset-4 hover:text-[var(--primary)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--bright)]"
+                      >
+                        {article.title}
+                        <span className="sr-only">
+                          {" "}
+                          (abre la fuente en otra pestaña)
+                        </span>
+                      </Link>
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
+                        <time
+                          dateTime={article.publishedAt ?? undefined}
+                          className="text-xs tabular-nums text-[var(--muted)]"
+                        >
+                          {article.publishedAt
+                            ? newsDateFormat.format(new Date(article.publishedAt))
+                            : "Sin fecha disponible"}
+                        </time>
+                        <span
+                          title="Sentimiento inferido por análisis NLP, no nivel de impacto"
+                          className={`flex items-center gap-1 text-xs ${
+                            article.sentiment === "positive"
+                              ? positive
+                              : article.sentiment === "negative"
+                                ? negative
+                                : "text-[var(--muted)]"
+                          }`}
+                        >
+                          <span
+                            className={`h-1 w-1 rounded-full ${
+                              article.sentiment === "positive"
+                                ? "bg-[var(--sentiment-greed)]"
+                                : article.sentiment === "negative"
+                                  ? "bg-[var(--sentiment-critical)]"
+                                  : "bg-[var(--muted)]"
+                            }`}
+                          />
+                          {sentimentLabels[article.sentiment]}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="flex min-h-60 flex-col items-center justify-center gap-3 py-10 text-center text-[var(--muted)]">
+                <Icon name={available ? "search" : "report"} size={28} />
+                <p className="m-0 max-w-56 text-xs leading-relaxed">
+                  {available
+                    ? "No hay titulares con este sentimiento. Probá con Todas."
+                    : "Las noticias aparecerán aquí cuando las fuentes estén disponibles."}
+                </p>
+                {error && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void refresh()}
+                    disabled={loading}
+                    className="min-h-8! text-xs!"
+                  >
+                    Reintentar
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="mt-auto border-t border-[var(--line)] px-4 py-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
+              <span>Sentimiento inferido por NLP</span>
+              {news && (
+                <time dateTime={news.checkedAt}>
+                  Consulta: {newsDateFormat.format(new Date(news.checkedAt))}
+                </time>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              className="min-h-8! w-full justify-between! rounded-md! bg-[var(--background)]! px-2.5! text-xs!"
+              onClick={openSentiment}
+            >
+              Ver Sentiment Analysis <Icon name="arrow" size={14} />
+            </Button>
+          </div>
+        </>
+      ) : (
+        <MacroAgenda onOpenAsset={onOpenAsset} />
+      )}
     </aside>
   )
 }
 
 export default function MarketDashboard({
   navigate,
+  onOpenAsset,
 }: {
   navigate: (section: "datos" | "diagnostico") => void
+  onOpenAsset?: (tvSymbol: string) => void
 }) {
   const { data, loading } = useMarketOverview()
   return (
@@ -1264,7 +1306,10 @@ export default function MarketDashboard({
             />
           </div>
         </div>
-        <NewsFeed openSentiment={() => navigate("diagnostico")} />
+        <NewsFeed
+          openSentiment={() => navigate("diagnostico")}
+          onOpenAsset={onOpenAsset}
+        />
       </div>
       <div className="mt-2.5">
         <ComparisonChart openGPR={() => navigate("datos")} />

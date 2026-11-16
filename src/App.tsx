@@ -1727,6 +1727,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
 
 export default function App() {
   const [active, setActive] = useState<Section>("dashboard");
+  const [terminalSymbol, setTerminalSymbol] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileViewport, setMobileViewport] = useState(false);
@@ -1831,7 +1832,16 @@ export default function App() {
   }, [toast]);
 
   const navigate = (section: Section) => {
+    // Al entrar por el menú, la Terminal vuelve al instrumento por defecto.
+    if (section === "financiamiento") setTerminalSymbol(null);
     setActive(section);
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  // Abre un activo en la Terminal de mercado desde cualquier tarjeta.
+  const openAsset = (tvSymbol: string) => {
+    setTerminalSymbol(tvSymbol);
+    setActive("financiamiento");
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1851,7 +1861,7 @@ export default function App() {
   };
 
   const view = useMemo(() => {
-    if (active === "dashboard") return <MarketDashboard navigate={navigate} />;
+    if (active === "dashboard") return <MarketDashboard navigate={navigate} onOpenAsset={openAsset} />;
     if (active === "datos") return <GPRDashboard />;
     if (active === "diagnostico") return <SentimentDashboard />;
     if (active === "financiamiento")
@@ -1862,7 +1872,7 @@ export default function App() {
             eyebrow="Módulo 2"
             title="Terminal de mercado"
           />
-          <TradingTerminal />
+          <TradingTerminal initialSymbol={terminalSymbol} />
         </>
       );
     if (active === "proyectos") return <Projects />;
@@ -1872,7 +1882,7 @@ export default function App() {
     if (active === "biblioteca") return <Library />;
     if (active === "historial") return <HistoryView navigate={navigate} saved={saved} />;
     return <Settings company={company} setCompany={setCompany} />;
-  }, [active, company, data, documents, isDemo, period, saved]);
+  }, [active, company, data, documents, isDemo, period, saved, terminalSymbol]);
 
   return (
     <div className={`app-shell${active === "datos" ? " gpr-mobile-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
