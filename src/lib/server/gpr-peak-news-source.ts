@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser"
-import type { GprPeakDay, GprPeakHeadline } from "@/lib/gpr"
+import type { GprPeakDay, GprPeakHeadline, GprPoint } from "@/lib/gpr"
 import { getDailyGpr } from "@/lib/server/gpr-source"
 
 const QUERY = "war OR military OR attack OR threat OR conflict"
@@ -15,6 +15,70 @@ const PUBLISHERS = [
   { domain: "theguardian.com", names: ["the guardian", "guardian"] },
   { domain: "theglobeandmail.com", names: ["globe and mail"] },
 ] as const
+// The wide search returns wire copy and smaller outlets too. These names are
+// ranked first so the block keeps a newsroom-grade tone when there is choice.
+const TRUSTED_SOURCES = [
+  "reuters",
+  "associated press",
+  "ap news",
+  "bbc news",
+  "bbc",
+  "al jazeera",
+  "cnn",
+  "nbc news",
+  "cbs news",
+  "abc news",
+  "npr",
+  "the new york times",
+  "new york times",
+  "the washington post",
+  "washington post",
+  "the wall street journal",
+  "wall street journal",
+  "financial times",
+  "the guardian",
+  "guardian",
+  "the telegraph",
+  "daily telegraph",
+  "time magazine",
+  "newsweek",
+  "the hill",
+  "politico",
+  "the economist",
+  "bloomberg",
+  "axios",
+  "deutsche welle",
+  "dw.com",
+  "france 24",
+  "france24",
+  "anadolu",
+  "south china morning post",
+  "scmp",
+  "the atlantic",
+  "foreign policy",
+  "the jerusalem post",
+  "haaretz",
+  "times of israel",
+  "kyiv independent",
+  "el país",
+  "elpais",
+  "usa today",
+  "los angeles times",
+  "chicago tribune",
+  "the globe and mail",
+] as const
+const TRUSTED_SOURCE_RE = new RegExp(
+  `(?<![\\p{L}])(?:${TRUSTED_SOURCES.map((name) =>
+    name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  ).join("|")})(?![\\p{L}])`,
+  "iu",
+)
+const trustedPublisher = (article: PublisherCandidate) =>
+  TRUSTED_SOURCE_RE.test(article.source ?? "")
+const WEEK_DAYS = 7
+const LOOKBACK_DAYS = 90
+const PEAK_PERCENTILE = 70
+const SERIES_KEYS = ["gpr", "gpra", "gprt"] as const
 const SOURCE_QUERY = PUBLISHERS.map(({ domain }) => `site:${domain}`).join(
   " OR ",
 )
@@ -142,6 +206,39 @@ async function googleHeadlines(date: string): Promise<SearchHeadline[]> {
     .slice(0, 5)
 }
 
+// Recent days rarely make the ten-newspaper cut, so the week view searches
+// every outlet and ranks known newsrooms first.
+async function broadGoogleHeadlines(date: string): Promise<SearchHeadline[]> {
+  const url = new URL("https://news.google.com/rss/search")
+  url.searchParams.set(
+    "q",
+    `${QUERY} after:${date} before:${nextDay(date)}`,
+  )
+  url.searchParams.set("hl", "en-US")
+  url.searchParams.set("gl", "US")
+  url.searchParams.set("ceid", "US:en")
+
+  const headlines = await parseHeadlines(
+    await fetchNewsFeed(url),
+    (item) => safeUrl(text(item.link)),
+    "source",
+  )
+  // Google's date window is fuzzy; keep the articles actually published that
+  // day before trimming, otherwise the next day's copy eats the quota.
+  const sameDay = headlines.filter((headline) => {
+    const published = Date.parse(headline.publishedAt)
+    return (
+      Number.isFinite(published) &&
+      new Date(published).toISOString().slice(0, 10) === date
+    )
+  })
+  const trusted: SearchHeadline[] = []
+  const rest: SearchHeadline[] = []
+  for (const headline of sameDay)
+    (trustedPublisher(headline) ? trusted : rest).push(headline)
+  return [...trusted, ...rest].slice(0, 5)
+}
+
 const englishDay = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "long",
@@ -214,6 +311,12 @@ async function bingHeadlines(date: string): Promise<SearchHeadline[]> {
 
 async function headlinesForDay(date: string) {
   try {
+    const headlines = await broadGoogleHeadlines(date)
+    if (headlines.length) return { headlines, provider: "Google News" as const }
+  } catch {
+    // Fall through to the publisher-restricted search.
+  }
+  try {
     const headlines = await googleHeadlines(date)
     if (headlines.length) return { headlines, provider: "Google News" as const }
   } catch {
@@ -234,13 +337,33 @@ export async function loadGprPeakNews() {
   const last = data.points.at(-1)
   if (!last) throw new Error("No GPR observations")
 
-  const start = new Date(`${last.date}T00:00:00Z`)
-  start.setUTCMonth(start.getUTCMonth() - 1)
-  const startKey = start.toISOString().slice(0, 10)
-  const peaks = data.points
-    .filter((point) => point.date >= startKey && point.date <= last.date)
-    .sort((a, b) => b.gpr - a.gpr)
-    .slice(0, 5)
+  const points = data.points
+  const weekStart = Math.max(0, points.length - WEEK_DAYS)
+
+  // Key days of the last week: a local peak in any of the three series that
+  // also ranks above the 70th percentile of the last 90 days. This keeps the
+  // day of a threat spike (GPRT) even when overall GPR is not the highest.
+  const peaks: GprPoint[] = []
+  for (let index = weekStart; index < points.length; index++) {
+    const point = points[index]
+    const previous = points[index - 1]
+    const next = points[index + 1]
+    const historyStart = Math.max(0, index - LOOKBACK_DAYS + 1)
+    const keyDay = SERIES_KEYS.some((key) => {
+      const value = point[key]
+      const localPeak =
+        (!previous || value >= previous[key]) && (!next || value >= next[key])
+      if (!localPeak) return false
+      const history = points
+        .slice(historyStart, index + 1)
+        .map((entry) => entry[key])
+      const rank =
+        (history.filter((entry) => entry <= value).length / history.length) * 100
+      return rank >= PEAK_PERCENTILE
+    })
+    if (keyDay) peaks.push(point)
+  }
+  peaks.sort((a, b) => b.date.localeCompare(a.date))
 
   const results = await Promise.allSettled(
     peaks.map((point) => headlinesForDay(point.date)),
@@ -250,48 +373,66 @@ export async function loadGprPeakNews() {
       ? result.value
       : { headlines: [], provider: null },
   )
+  // The first burst can hit cold HTTP connections and lose a day to the 8 s
+  // timeout. Retry the empty ones one at a time instead of dropping a card.
+  for (let index = 0; index < peaks.length; index++) {
+    if (loaded[index].headlines.length) continue
+    try {
+      const retry = await headlinesForDay(peaks[index].date)
+      if (retry.headlines.length) loaded[index] = retry
+    } catch {
+      // Keep the empty result; the day is simply omitted.
+    }
+  }
 
-  // A search can return the same article for adjacent peaks. Keep it once and
-  // map it to the peak closest to its actual publication date.
+  // A search can return neighbouring days too, and Google's date filter is
+  // fuzzy. Keep only articles published on a day the panel actually shows.
   const assignments = new Map<string, {
     dayIndex: number
     distance: number
     headline: SearchHeadline
   }>()
-  for (const result of loaded) {
+  for (const [sourceIndex, result] of loaded.entries()) {
     for (const headline of result.headlines) {
       const published = Date.parse(headline.publishedAt)
-      const dayIndex = peaks.reduce((best, peak, index) => {
+      if (Number.isFinite(published)) {
+        const publishedDate = new Date(published).toISOString().slice(0, 10)
+        const dayIndex = peaks.findIndex((peak) => peak.date === publishedDate)
+        if (dayIndex === -1) continue
         const distance = Math.abs(
-          published - Date.parse(`${peak.date}T00:00:00Z`),
+          published - Date.parse(`${peaks[dayIndex].date}T00:00:00Z`),
         )
-        const bestDistance = Math.abs(
-          published - Date.parse(`${peaks[best].date}T00:00:00Z`),
-        )
-        return distance < bestDistance ? index : best
-      }, 0)
-      const distance = Math.abs(
-        published - Date.parse(`${peaks[dayIndex].date}T00:00:00Z`),
-      )
-      const previous = assignments.get(headline.url)
-      if (!previous || distance < previous.distance)
-        assignments.set(headline.url, { dayIndex, distance, headline })
+        const previous = assignments.get(headline.url)
+        if (!previous || distance < previous.distance)
+          assignments.set(headline.url, { dayIndex, distance, headline })
+        continue
+      }
+      // Without a usable date the headline stays on the day that surfaced it.
+      if (!assignments.has(headline.url))
+        assignments.set(headline.url, {
+          dayIndex: sourceIndex,
+          distance: Number.MAX_SAFE_INTEGER,
+          headline,
+        })
     }
   }
 
-  const days: GprPeakDay[] = peaks.map((point, index) => ({
-    ...point,
-    provider: loaded[index].provider,
-    headlines: [...assignments.values()]
-      .filter((assignment) => assignment.dayIndex === index)
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 5)
-      .map(({ headline }) => ({
-        title: headline.title,
-        url: headline.url,
-        source: headline.source,
-      })),
-  }))
+  const days: GprPeakDay[] = peaks
+    .map((point, index) => ({
+      ...point,
+      provider: loaded[index].provider,
+      headlines: [...assignments.values()]
+        .filter((assignment) => assignment.dayIndex === index)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5)
+        .map(({ headline }) => ({
+          title: headline.title,
+          url: headline.url,
+          source: headline.source,
+        })),
+    }))
+    // Days without news are omitted so the panel never renders empty cards.
+    .filter((day) => day.headlines.length > 0)
 
   return {
     status: "available" as const,
