@@ -7,6 +7,10 @@ const siteURL =
     : "http://localhost:3000")
 
 const nextConfig: NextConfig = {
+  // Marks this checkout as the security-upgrade target for the Next.js agent.
+  experimental: {
+    agentUpgrade: "security",
+  },
   // Only two local images are used, so skip the optimizer (no Vercel image
   // optimization quota consumed, no sharp dependency needed).
   images: {
