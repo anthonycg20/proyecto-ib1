@@ -20,11 +20,17 @@ import type { GprPeakNewsResponse, GprPoint, GprResponse } from "../lib/gpr"
 import { buildCountryView, countryForIso3 } from "../lib/gpr-country"
 import {
   gprDefinitions,
+  type GprCountryNewsArticle,
+  type GprCountryNewsProvider,
   type GprNewsArticle,
   type GprNewsCategory,
   type GprNewsResponse,
 } from "../lib/gpr-news"
 import { summarizeGpr } from "../lib/gpr-series"
+import {
+  gprTopicMeta,
+  type GprTopic,
+} from "../lib/gpr-topics"
 import { CountryRiskCard } from "./gpr/CountryRiskCard"
 import {
   useCountryNews,
@@ -860,6 +866,16 @@ const newsFilters = {
   act: "GPRA · Actos",
   threat: "GPRT · Amenazas",
 } as const
+
+// Display order of the area chips in the country feed (not the classifier
+// tie-break order, which puts law/finance before economy).
+const topicFilters: GprTopic[] = [
+  "gpr",
+  "politics",
+  "economy",
+  "finance",
+  "law",
+]
 const NEWS_PAGE = 6
 
 const relativeTime = new Intl.RelativeTimeFormat("es", { numeric: "auto" })
@@ -896,6 +912,9 @@ function NewsThumbnail({ src }: { src: string | null }) {
 
 function NewsItem({ article }: { article: GprNewsArticle }) {
   const published = publishedLabel(article.publishedAt)
+  const topic = article.topic
+  const category = article.category
+  const mention = article.inTitle === false
   return (
     <article>
       <a href={article.url} target="_blank" rel="noopener noreferrer">
@@ -903,9 +922,22 @@ function NewsItem({ article }: { article: GprNewsArticle }) {
         <span className="gpr-news-body">
           <strong className="gpr-news-title">{article.title}</strong>
           <span className="gpr-news-meta">
-            <span className={`gpr-news-tag tag-${article.category}`}>
-              {gprDefinitions[article.category].label}
-            </span>
+            {topic ? (
+              <span
+                className={`gpr-news-tag ${
+                  gprTopicMeta[topic].className
+                }`}
+              >
+                {gprTopicMeta[topic].label}
+              </span>
+            ) : category ? (
+              <span className={`gpr-news-tag tag-${category}`}>
+                {gprDefinitions[category].label}
+              </span>
+            ) : null}
+            {mention && (
+              <span className="gpr-news-tag tag-mention">Mención</span>
+            )}
             <span>
               {article.source}
               {published && (
@@ -918,7 +950,9 @@ function NewsItem({ article }: { article: GprNewsArticle }) {
               )}
             </span>
           </span>
-          <span className="gpr-news-signal">Señal: «{article.signal}»</span>
+          {category && article.signal && (
+            <span className="gpr-news-signal">Señal: «{article.signal}»</span>
+          )}
         </span>
         <span className="sr-only"> (se abre en una pestaña nueva)</span>
       </a>
@@ -931,6 +965,9 @@ function GeopoliticalNews({
   countryName,
   countryArticles,
   countryStatus,
+  countryUpdatedAt,
+  countryProvider,
+  countryPartial,
   tagFilter,
   onClearCountry,
   onClearTag,
@@ -938,18 +975,28 @@ function GeopoliticalNews({
 }: {
   countryFilter: string | null
   countryName: string | null
-  countryArticles: GprNewsArticle[]
+  countryArticles: GprCountryNewsArticle[]
   countryStatus: CountryNewsStatus
+  countryUpdatedAt: string | null
+  countryProvider: GprCountryNewsProvider | null
+  countryPartial: boolean
   tagFilter: string | null
   onClearCountry: () => void
   onClearTag: () => void
   feedRef: RefObject<HTMLElement | null>
 }) {
   const [filter, setFilter] = useState<GprNewsCategory | "all">("all")
+  const [topicFilter, setTopicFilter] = useState<GprTopic | "all">("all")
   const [showAll, setShowAll] = useState(false)
   const [articles, setArticles] = useState<GprNewsArticle[]>([])
   const [sources, setSources] = useState<string[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
+  const isCountry = !!countryFilter
+
+  useEffect(() => {
+    setTopicFilter("all")
+    setShowAll(false)
+  }, [countryFilter])
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setStatus("loading")
@@ -972,15 +1019,22 @@ function GeopoliticalNews({
     return () => controller.abort()
   }, [load])
 
-  const base = countryFilter && countryArticles.length ? countryArticles : articles
+  // The country feed already arrives ordered (headlines first, then mentions
+  // outside the headline, newest first). If it is empty we fall back to the
+  // world feed filtered by country and say so.
+  const base = useMemo<GprNewsArticle[]>(() => {
+    if (!countryFilter) return articles
+    if (countryArticles.length) return countryArticles
+    return articles.filter((item) => item.countries.includes(countryFilter))
+  }, [articles, countryArticles, countryFilter])
+
+  const countryFallback =
+    isCountry && !countryArticles.length && base.length > 0
+
   const scoped = useMemo(
     () =>
-      base.filter(
-        (item) =>
-          (!countryFilter || item.countries.includes(countryFilter)) &&
-          (!tagFilter || item.tags.includes(tagFilter)),
-      ),
-    [base, countryFilter, tagFilter],
+      base.filter((item) => !tagFilter || item.tags.includes(tagFilter)),
+    [base, tagFilter],
   )
   const counts = useMemo(
     () => ({
@@ -990,42 +1044,113 @@ function GeopoliticalNews({
     }),
     [scoped],
   )
-  const filtered = scoped.filter(
-    (item) => filter === "all" || item.category === filter,
-  )
+  // Country mode filters by area instead of GPRA/GPRT.
+  const topicCounts = useMemo(() => {
+    const totals = new Map<GprTopic, number>()
+    for (const item of scoped) {
+      if (!item.topic) continue
+      totals.set(item.topic, (totals.get(item.topic) ?? 0) + 1)
+    }
+    return totals
+  }, [scoped])
+  const filtered = isCountry
+    ? scoped.filter(
+        (item) => topicFilter === "all" || item.topic === topicFilter,
+      )
+    : scoped.filter((item) => filter === "all" || item.category === filter)
   const displayed = showAll ? filtered : filtered.slice(0, NEWS_PAGE)
   const loading =
     status === "loading" ||
-    (!!countryFilter && countryStatus === "loading" && !countryArticles.length)
+    (isCountry && countryStatus === "loading" && !countryArticles.length)
+
+  const updatedLabel = countryUpdatedAt
+    ? new Intl.DateTimeFormat("es-PE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Lima",
+      }).format(new Date(countryUpdatedAt))
+    : null
+
+  const footnoteSources = (
+    isCountry ? [...new Set(base.map((item) => item.source))] : sources
+  ).slice(0, 6)
 
   return (
     <aside className="gpr-news-column" ref={feedRef} tabIndex={-1}>
       <section className="card gpr-news">
         <div className="gpr-news-heading">
           <span className="gpr-section-eyebrow">GEOPOLITICAL NEWS FEED</span>
-          <Heading level={2}>Noticias geopolíticas</Heading>
+          <Heading level={2}>
+            {isCountry
+              ? `Noticias de ${countryName ?? countryFilter}`
+              : "Noticias geopolíticas"}
+          </Heading>
           <p>
-            {countryName
-              ? `Titulares vinculados a ${countryName}`
+            {isCountry
+              ? "Últimos 30 días · GPR, política, economía, finanzas y derecho"
               : "Titulares reales, clasificados como actos o amenazas"}
           </p>
         </div>
         <div className="gpr-news-filters" aria-label="Filtrar noticias">
-          {(["all", "act", "threat"] as const).map((item) => (
-            <Button
-              key={item}
-              variant="ghost"
-              aria-pressed={filter === item}
-              onClick={() => {
-                setFilter(item)
-                setShowAll(false)
-              }}
-            >
-              {newsFilters[item]}
-              {!loading && <small>{counts[item]}</small>}
-            </Button>
-          ))}
+          {isCountry ? (
+            <>
+              <Button
+                variant="ghost"
+                aria-pressed={topicFilter === "all"}
+                onClick={() => {
+                  setTopicFilter("all")
+                  setShowAll(false)
+                }}
+              >
+                Todas
+                {!loading && <small>{scoped.length}</small>}
+              </Button>
+              {topicFilters.map((topic) => {
+                const total = topicCounts.get(topic) ?? 0
+                return (
+                  <Button
+                    key={topic}
+                    variant="ghost"
+                    className={gprTopicMeta[topic].className}
+                    aria-pressed={topicFilter === topic}
+                    disabled={total === 0}
+                    onClick={() => {
+                      setTopicFilter(topic)
+                      setShowAll(false)
+                    }}
+                  >
+                    {gprTopicMeta[topic].label}
+                    {!loading && <small>{total}</small>}
+                  </Button>
+                )
+              })}
+            </>
+          ) : (
+            (["all", "act", "threat"] as const).map((item) => (
+              <Button
+                key={item}
+                variant="ghost"
+                aria-pressed={filter === item}
+                onClick={() => {
+                  setFilter(item)
+                  setShowAll(false)
+                }}
+              >
+                {newsFilters[item]}
+                {!loading && <small>{counts[item]}</small>}
+              </Button>
+            ))
+          )}
         </div>
+        {countryFallback && (
+          <p className="gpr-news-fallback">
+            <Icon name="info" size={13} />
+            <span>
+              Sin cobertura específica reciente; mostramos el feed global
+              filtrado por país.
+            </span>
+          </p>
+        )}
         {(countryFilter || tagFilter) && (
           <div className="gpr-news-scope" aria-label="Filtros activos">
             {countryFilter && (
@@ -1049,7 +1174,10 @@ function GeopoliticalNews({
               </button>
             )}
             <span className="gpr-news-scope-count">
-              {loading ? "Filtrando…" : `${scoped.length} titulares`}
+              {loading ? "Filtrando…" : `${filtered.length} titulares`}
+              {isCountry && updatedLabel && !loading
+                ? ` · Actualizado ${updatedLabel}`
+                : ""}
             </span>
           </div>
         )}
@@ -1073,7 +1201,7 @@ function GeopoliticalNews({
             <div className="gpr-news-state" role="status">
               <span>
                 {countryName
-                  ? `No hay titulares de ${countryName} en las fuentes actuales.`
+                  ? `No hay titulares de ${countryName} en los últimos 30 días.`
                   : "No hay titulares de este tipo en las fuentes en este momento."}
               </span>
               {(countryFilter || tagFilter) && (
@@ -1107,13 +1235,33 @@ function GeopoliticalNews({
         <div className="gpr-news-disclaimer">
           <Icon name="info" size={15} />
           <span>
-            Titulares e imágenes de{" "}
-            {sources.length
-              ? sources.join(", ")
-              : "The New York Times, The Guardian, BBC News y El País"}
-            . Clasificación automática por palabras clave, inspirada en la
-            metodología de Caldara e Iacoviello; no es el cálculo oficial del
-            GPR.
+            {isCountry ? (
+              <>
+                Titulares de{" "}
+                {footnoteSources.length
+                  ? footnoteSources.join(", ")
+                  : "las fuentes actuales"}
+                . Ventana de 30 días; clasificación automática por tema
+                (GPR, política, economía, finanzas y derecho).
+                {countryProvider && (
+                  <>
+                    {" "}
+                    Fuente: {countryProvider}
+                    {countryPartial ? " · datos parciales" : ""}.
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                Titulares e imágenes de{" "}
+                {sources.length
+                  ? sources.join(", ")
+                  : "The New York Times, The Guardian, BBC News y El País"}
+                . Clasificación automática por palabras clave, inspirada en la
+                metodología de Caldara e Iacoviello; no es el cálculo oficial
+                del GPR.
+              </>
+            )}
           </span>
         </div>
       </section>
@@ -1140,10 +1288,14 @@ function GeopoliticalNews({
             Caldara e Iacoviello. El mapa, el desglose GPRA/GPRT y el trend por
             país son ilustrativos: no existe un desglose oficial por país. Las
             noticias son titulares reales de las fuentes indicadas,
-            actualizados cada pocos minutos y etiquetados automáticamente como
-            GPRA o GPRT. La card del país consulta GDELT y Google News; cuando
-            un país no tiene cobertura se indica de forma explícita. No
-            constituye asesoramiento de inversión.
+            actualizados cada pocos minutos. El feed global se etiqueta como
+            GPRA o GPRT; el feed por país prioriza los últimos 30 días y
+            etiqueta cada titular como GPR, política, economía, finanzas o
+            derecho. La card del país consulta GDELT y Google News y muestra
+            hasta cuatro hechos clave de los últimos 30 días, cada uno con el
+            titular original y su fuente; cuando un país no tiene cobertura
+            suficiente se indica de forma explícita. No constituye
+            asesoramiento de inversión.
           </p>
         </details>
       </section>
@@ -1172,19 +1324,21 @@ export default function GPRDashboard() {
     () => (data ? summarizeGpr(data.points) : null),
     [data],
   )
-  const news = useCountryNews(iso3Of(selectedIso2))
+  const selectedIso3 = iso3Of(selectedIso2)
+  const news = useCountryNews(selectedIso3)
   const country = useMemo(
-    () => buildCountryView(selectedIso2, news.data),
-    [selectedIso2, news.data],
+    () =>
+      buildCountryView(
+        selectedIso2,
+        news.data?.iso3 === selectedIso3 ? news.data : null,
+      ),
+    [selectedIso2, selectedIso3, news.data],
   )
   const filterCountry = countryFilter ? countryForIso3(countryFilter) : null
-  const countryArticles = useMemo(
-    () =>
-      countryFilter && countryFilter === country.iso3
-        ? (news.data?.articles ?? [])
-        : [],
-    [countryFilter, country.iso3, news.data],
-  )
+  // Never show the previous country's headlines while the new request loads.
+  const countryNews =
+    countryFilter && news.data?.iso3 === countryFilter ? news.data : null
+  const countryArticles = countryNews?.articles ?? []
 
   const selectCountry = useCallback((iso2: string) => {
     setSelectedIso2(iso2)
@@ -1308,6 +1462,9 @@ export default function GPRDashboard() {
           countryName={filterCountry?.name ?? null}
           countryArticles={countryArticles}
           countryStatus={news.status}
+          countryUpdatedAt={countryNews?.checkedAt ?? null}
+          countryProvider={countryNews?.provider ?? null}
+          countryPartial={countryNews?.partial ?? false}
           tagFilter={tagFilter}
           onClearCountry={() => setCountryFilter(null)}
           onClearTag={() => setTagFilter(null)}

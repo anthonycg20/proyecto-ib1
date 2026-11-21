@@ -31,7 +31,7 @@ function TrendLine({ trend }: { trend: number }) {
   )
 }
 
-function Drivers({
+function Highlights({
   country,
   status,
 }: {
@@ -44,29 +44,41 @@ function Drivers({
         <span />
         <span />
         <span />
+        <span />
       </div>
     )
 
   if (status === "error")
     return (
       <p className="gpr-country-empty">
-        No se pudieron cargar los titulares de {country.name}.
+        No se pudieron cargar los hechos clave de {country.name} con las fuentes
+        actuales.
       </p>
     )
 
-  if (!country.drivers.length)
+  if (!country.highlights.length)
     return (
       <p className="gpr-country-empty">
-        Sin cobertura reciente de {country.name} en las fuentes actuales.
+        Sin hechos clave para {country.name} en los últimos 30 días. Los
+        titulares recientes siguen disponibles en el feed.
       </p>
     )
 
   return (
-    <ul className="gpr-country-drivers">
-      {country.drivers.map((driver) => (
-        <li key={driver}>{driver}</li>
+    <ol className="gpr-country-highlights">
+      {country.highlights.map((highlight) => (
+        <li key={highlight.url}>
+          <a href={highlight.url} target="_blank" rel="noopener noreferrer">
+            <span className="gpr-country-highlight-title">
+              {highlight.title}
+            </span>
+            <span className="gpr-country-highlight-source">
+              {highlight.source}
+            </span>
+          </a>
+        </li>
       ))}
-    </ul>
+    </ol>
   )
 }
 
@@ -136,11 +148,11 @@ export function CountryRiskCard({
           <TrendLine trend={country.trend} />
 
           <div className="gpr-country-section">
-            <span className="gpr-country-label">Drivers clave</span>
-            <Drivers country={country} status={newsStatus} />
+            <span className="gpr-country-label">Hechos clave</span>
+            <Highlights country={country} status={newsStatus} />
             {newsStatus === "ready" && provider && (
               <span className="gpr-country-source">
-                Fuente: {provider}
+                Últimos 30 días · Titulares: {provider}
                 {partial ? " · datos parciales" : ""}
               </span>
             )}

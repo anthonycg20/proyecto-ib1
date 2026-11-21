@@ -1,5 +1,5 @@
 // Country-level view of the GPR dashboard: score breakdown, news linking,
-// deduplication and the drivers/tags shown in the floating card.
+// deduplication and the key facts/tags shown in the floating card.
 
 import { countryRiskScores, getRiskLevel } from "../data/geopolitical"
 import {
@@ -10,6 +10,7 @@ import {
   TAG_RULES,
   type CountryEntity,
 } from "../data/gpr-countries"
+import type { GprHighlight } from "./gpr-news"
 
 export type GprCountryLevel = {
   label: string
@@ -25,7 +26,7 @@ export type GprCountry = {
   gpra: number | null
   gprt: number | null
   trend: number
-  drivers: string[]
+  highlights: GprHighlight[]
   tags: string[]
 }
 
@@ -56,10 +57,16 @@ function buildAliasIndex(): AliasIndex {
 
 const aliasIndex = buildAliasIndex()
 
+// "Faria Lima" is a São Paulo avenue and a market shorthand, and "Nova Lima"
+// is a Brazilian municipality. Without this guard the "lima" alias pulls
+// Brazilian stories into Peru's feed and card.
+const COUNTRY_ALIAS_NOISE = /\b(faria|nova) lima\b/g
+
 function matchIso3(text: string) {
   const hits = new Set<string>()
   if (!text) return hits
-  for (const match of normalizeText(text).matchAll(aliasIndex.pattern)) {
+  const normalized = normalizeText(text).replace(COUNTRY_ALIAS_NOISE, "$1")
+  for (const match of normalized.matchAll(aliasIndex.pattern)) {
     const iso3 = aliasIndex.lookup.get(match[1])
     if (iso3) hits.add(iso3)
   }
@@ -155,10 +162,6 @@ export function cleanHeadline(title: string) {
   return `${(space > 60 ? cut.slice(0, space) : cut).trimEnd()}…`
 }
 
-export function driversFromArticles(articles: Array<{ title: string }>) {
-  return articles.slice(0, 3).map((article) => cleanHeadline(article.title))
-}
-
 export function tagsFromArticles(articles: Array<{ tags: string[] }>) {
   const counts = new Map<string, number>()
   for (const article of articles)
@@ -199,7 +202,10 @@ export function countryEntity(iso2: string): CountryEntity {
 
 export function buildCountryView(
   iso2: string,
-  news?: { drivers: string[]; tags: string[] } | null,
+  news?: {
+    highlights: GprHighlight[]
+    tags: string[]
+  } | null,
 ): GprCountry {
   const entity = countryEntity(iso2)
   const score = countryRiskScores[iso2]
@@ -211,7 +217,7 @@ export function buildCountryView(
     score: score ?? null,
     level: getRiskLevel(score),
     ...breakdown,
-    drivers: news?.drivers ?? [],
+    highlights: news?.highlights ?? [],
     tags: news?.tags ?? [],
   }
 }

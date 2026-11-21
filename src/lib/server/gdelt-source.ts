@@ -5,6 +5,8 @@
 // spaced out, and the client opens a circuit breaker after a 429 so the rest of
 // the dashboard keeps working with the fallbacks.
 
+import { sourceLabelFromDomain } from "@/lib/gpr-sources"
+
 const ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc"
 const MIN_GAP_MS = 1_300
 const BLOCK_MS = 10 * 60_000
@@ -45,31 +47,7 @@ function schedule<T>(task: () => Promise<T>): Promise<T> {
   return run
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  "bbc.co.uk": "BBC News",
-  "bbc.com": "BBC News",
-  "nytimes.com": "The New York Times",
-  "theguardian.com": "The Guardian",
-  "elpais.com": "El País",
-  "reuters.com": "Reuters",
-  "apnews.com": "AP",
-  "aljazeera.com": "Al Jazeera",
-  "france24.com": "France 24",
-  "dw.com": "DW",
-  "cnn.com": "CNN",
-  "washingtonpost.com": "The Washington Post",
-  "ft.com": "Financial Times",
-  "wsj.com": "The Wall Street Journal",
-  "lemonde.fr": "Le Monde",
-  "efe.com": "EFE",
-}
-
-const domainLabel = (domain: string) => {
-  const clean = domain.replace(/^www\./, "").toLowerCase()
-  if (SOURCE_LABELS[clean]) return SOURCE_LABELS[clean]
-  const parent = clean.split(".").slice(-2).join(".")
-  return SOURCE_LABELS[parent] ?? clean
-}
+const domainLabel = (domain: string) => sourceLabelFromDomain(domain)
 
 const httpsOnly = (value: unknown) => {
   if (typeof value !== "string" || !value) return null

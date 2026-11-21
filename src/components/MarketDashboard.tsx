@@ -1063,7 +1063,7 @@ function NewsFeed({
             role="tab"
             aria-selected={view === option}
             onClick={() => setView(option)}
-            className={`min-h-7 rounded-md px-2.5 text-xs font-medium transition-colors ${
+            className={`min-h-7 rounded-md px-2.5 text-[11px]! font-medium! transition-colors ${
               view === option
                 ? "bg-[var(--blue-soft)] text-[var(--primary)]"
                 : "text-[var(--muted)] hover:text-[var(--ink)]"
@@ -1076,7 +1076,7 @@ function NewsFeed({
       {view === "news" ? (
         <>
           <div
-            className="flex items-center gap-1.5 px-4 pb-3 pt-1.5 text-xs text-[var(--muted)]"
+            className="flex items-center gap-1.5 px-4 pb-3 pt-1.5 text-[10px] font-semibold text-[var(--muted)]"
             role="status"
           >
             <span

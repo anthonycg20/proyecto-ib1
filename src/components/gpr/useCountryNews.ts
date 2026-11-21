@@ -11,7 +11,10 @@ export type CountryNewsState = {
 }
 
 // Country news is fetched on demand (one request per selected country) and
-// memoized per ISO-3 for the session, so flipping between countries is instant.
+// memoized per ISO-3 for the session. Cached responses older than 15 minutes
+// are refreshed in the background while the previous data stays visible.
+const MAX_AGE_MS = 15 * 60_000
+
 export function useCountryNews(iso3: string) {
   const cache = useRef(new Map<string, GprCountryNewsResponse>())
   const [state, setState] = useState<CountryNewsState>({
@@ -21,14 +24,19 @@ export function useCountryNews(iso3: string) {
 
   useEffect(() => {
     const cached = cache.current.get(iso3)
-    if (cached) {
+    const checkedAt = cached ? Date.parse(cached.checkedAt) : NaN
+    const fresh =
+      cached && Number.isFinite(checkedAt) && Date.now() - checkedAt < MAX_AGE_MS
+
+    if (fresh) {
       setState({ status: "ready", data: cached })
       return
     }
 
-    const controller = new AbortController()
-    setState({ status: "loading", data: null })
+    // Show stale data immediately, then refresh it.
+    setState({ status: cached ? "ready" : "loading", data: cached ?? null })
 
+    const controller = new AbortController()
     fetch(`/api/gpr-country-news?iso3=${encodeURIComponent(iso3)}`, {
       signal: controller.signal,
     })
@@ -42,7 +50,7 @@ export function useCountryNews(iso3: string) {
         setState({ status: "ready", data: result })
       })
       .catch(() => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted && !cached)
           setState({ status: "error", data: null })
       })
 
