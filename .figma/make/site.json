@@ -1,6 +1,6 @@
 {
   "title": "IB1 — Investment Business One",
-  "description": "IB1 is a financial analysis platform designed for SMEs and entrepreneurs, enabling users to evaluate financial decisions through interactive tools and clear reports.",
+  "description": "Plataforma que concentra información de los mercados financieros para el análisis y la toma de decisiones de inversión: índices, riesgo geopolítico (GPR), calendario económico, sentimiento de noticias y seguimiento de cartera.",
   "robots": {
     "index": false
   },

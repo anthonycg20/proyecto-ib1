@@ -1,12 +1,18 @@
 # IB1 — Investment Business One
 
-Plataforma de análisis financiero para PyMEs: indicadores de mercado, índice GPR
-(riesgo geopolítico), análisis de sentimiento y herramientas de evaluación
-financiera (liquidez, endeudamiento, préstamos, VAN/TIR/payback, escenarios,
-informes y biblioteca).
+Plataforma que concentra información de los mercados financieros para el análisis
+y la toma de decisiones de inversión: índices y cotizaciones, riesgo geopolítico
+(GPR), calendario económico, sentimiento de noticias y seguimiento de cartera.
 
-Next.js 16 (App Router) + React 19 + Tailwind CSS v4, en TypeScript. Desplegable
-en Vercel sin base de datos: la persistencia de usuario vive en `localStorage`.
+Next.js 16 (App Router) + React 19 + Tailwind CSS v4, en TypeScript. Se despliega
+en Vercel sin base de datos: los datos del usuario (cartera, análisis e informes)
+viven en `localStorage`.
+
+## Secciones
+
+- **Mercado**: Inicio (radar de noticias y agenda macro), GPR Index, Sentiment Analysis.
+- **Análisis**: Financiamiento, Proyectos de inversión, Simulador de escenarios, Crear gráficos.
+- **Registro**: Informes financieros, Biblioteca, Historial, Configuración.
 
 ## Comandos
 
@@ -21,17 +27,21 @@ pnpm start
 
 - `src/App.tsx` — shell de la aplicación y sus 11 secciones (client component).
 - `src/components/` — dashboards de mercado, GPR y sentimiento.
-- `src/lib/` — cálculos financieros, NLP de titulares, importación de documentos.
+- `src/lib/` — cálculos, NLP de titulares, importación de documentos.
 - `src/lib/server/` — lectores de servidor de las fuentes externas.
 - `src/app/(frontend)/api/` — route handlers (Node runtime):
 
 | Endpoint | Fuente |
 |---|---|
 | `/api/market-overview` | Yahoo Finance (quotes/screener) + Finviz (heatmaps) |
+| `/api/watchlist-quotes` | Yahoo Finance |
+| `/api/candles` | Yahoo Finance (velas por intervalo) |
 | `/api/fear-greed` | CNN Fear & Greed graphdata |
 | `/api/gpr` | Caldara & Iacoviello, `matteoiacoviello.com/gpr.htm` (xlsx diario) |
 | `/api/gpr-news` | RSS de NYT, Guardian, BBC y El País |
 | `/api/gpr-peak-news` | Google News RSS (fallback Bing News RSS) |
+| `/api/gpr-country-news` | Google News RSS (ventana de 30 días por país) |
+| `/api/economic-calendar` | Calendario económico de Forex Factory |
 | `/api/market-comparison` | GPR + S&P 500 (Yahoo) |
 | `/api/market-sentiment` | Google News, El País Economía y BBC Business |
 
